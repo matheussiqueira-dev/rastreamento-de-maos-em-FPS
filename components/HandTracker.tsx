@@ -12,11 +12,10 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onError }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastStateRef = useRef<HandState | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (!videoRef.current || !canvasRef.current) return;
-
-    let camera: any = null;
 
     // Use any casting for window to access MediaPipe global variables
     const hands = new (window as any).Hands({
@@ -31,9 +30,10 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onError }) => {
     });
 
     const onResults = (results: any) => {
-      const ctx = canvasRef.current!.getContext('2d')!;
-      ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-      ctx.drawImage(results.image, 0, 0, canvasRef.current!.width, canvasRef.current!.height);
+      if (!canvasRef.current) return;
+      const ctx = canvasRef.current.getContext('2d')!;
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      ctx.drawImage(results.image, 0, 0, canvasRef.current.width, canvasRef.current.height);
 
       let newState: HandState = {
         movement: MovementGesture.STOP,
@@ -71,39 +71,50 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onError }) => {
 
     hands.onResults(onResults);
 
+    let animationFrameId: number;
+    const processFrame = async () => {
+      if (videoRef.current && videoRef.current.readyState >= 2) {
+        await hands.send({ image: videoRef.current });
+      }
+      animationFrameId = requestAnimationFrame(processFrame);
+    };
+
     const initCamera = async () => {
       try {
-        // First check if any camera exists
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const hasCamera = devices.some(device => device.kind === 'videoinput');
-        
-        if (!hasCamera) {
-          throw new Error("No video input devices found. Please connect a camera.");
+        // Try to get a stream with flexible constraints to avoid NotFoundError on some hardware
+        const constraints = {
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user'
+          }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play();
+            setCameraActive(true);
+            processFrame();
+          };
         }
-
-        // Initialize Camera using global window object
-        camera = new (window as any).Camera(videoRef.current, {
-          onFrame: async () => {
-            if (videoRef.current) {
-              await hands.send({ image: videoRef.current });
-            }
-          },
-          width: 640,
-          height: 480
-        });
-
-        await camera.start();
-        setCameraActive(true);
       } catch (err: any) {
         console.error("HandTracker Camera Error:", err);
         let message = "Could not access camera.";
-        if (err.name === 'NotFoundError') {
-          message = "Requested camera device not found. If you are on a mobile device or using a virtual camera, ensure it is active.";
-        } else if (err.name === 'NotAllowedError') {
-          message = "Camera access denied. Please allow camera permissions in your browser settings.";
+        
+        if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          message = "No camera device was found. Please check your hardware connection and ensure no other app is using the camera.";
+        } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          message = "Camera access denied. Please allow camera permissions in your browser settings to play.";
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          message = "Camera is already in use by another application or tab.";
         } else if (err.message) {
           message = err.message;
         }
+        
         if (onError) onError(message);
       }
     };
@@ -111,8 +122,9 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onError }) => {
     initCamera();
 
     return () => {
-      if (camera) {
-        camera.stop();
+      cancelAnimationFrame(animationFrameId);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
   }, [onUpdate, onError]);

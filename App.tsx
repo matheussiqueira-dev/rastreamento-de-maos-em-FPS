@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import GameContainer from './components/GameContainer';
 import HandTracker from './components/HandTracker';
 import HUD from './components/HUD';
+import VeoAnimator from './components/VeoAnimator';
 import { HandState, MovementGesture, CombatGesture, GameState } from './types';
 
 const App: React.FC = () => {
@@ -23,19 +24,15 @@ const App: React.FC = () => {
   });
 
   const [error, setError] = useState<string | null>(null);
+  const [isVeoOpen, setIsVeoOpen] = useState(false);
   const stepCount = useRef(0);
 
-  /**
-   * DEFINED HAPTIC PATTERNS
-   * Numbers represent milliseconds of vibration.
-   * Arrays represent [vibrate, pause, vibrate, pause, ...]
-   */
   const HAPTIC_PATTERNS = {
-    FIRE: [45], // Sharp recoil pulse
-    RELOAD: [50, 80, 50, 150, 100], // Mag out (double click) -> Pause -> Lock in (thud)
-    DAMAGE_CRITICAL: [200, 100, 200, 100, 300], // Heavy jarring throb
-    WALK_CONCRETE: [15], // Subtle muffled step
-    WALK_METAL: [10, 25, 10], // Sharp high-frequency resonance for metallic surfaces
+    FIRE: [45],
+    RELOAD: [50, 80, 50, 150, 100],
+    DAMAGE_CRITICAL: [200, 100, 200, 100, 300],
+    WALK_CONCRETE: [15],
+    WALK_METAL: [10, 25, 10],
   };
 
   const triggerHaptic = (pattern: number | number[]) => {
@@ -93,27 +90,18 @@ const App: React.FC = () => {
     }
   }, [handState.combat, handleReload]);
 
-  /**
-   * ENVIRONMENTAL HAPTICS
-   * Simulates footsteps based on movement. 
-   * Detects "Surface" changes based on step progression.
-   */
   useEffect(() => {
     let interval: number;
-    if (handState.movement !== MovementGesture.STOP && !gameState.isGameOver) {
+    if (handState.movement !== MovementGesture.STOP && !gameState.isGameOver && !isVeoOpen) {
       interval = window.setInterval(() => {
         stepCount.current++;
-        
-        // Simulating different surfaces: 
-        // We alternate to "Metal" every 12 steps to simulate walking over grates/plates
         const stepCycle = stepCount.current % 16;
         const isOnMetal = stepCycle > 12;
-        
         triggerHaptic(isOnMetal ? HAPTIC_PATTERNS.WALK_METAL : HAPTIC_PATTERNS.WALK_CONCRETE);
-      }, 450); // Footstep frequency
+      }, 450);
     }
     return () => clearInterval(interval);
-  }, [handState.movement, gameState.isGameOver]);
+  }, [handState.movement, gameState.isGameOver, isVeoOpen]);
 
   return (
     <div className="relative w-full h-screen bg-neutral-900 overflow-hidden font-sans">
@@ -125,6 +113,18 @@ const App: React.FC = () => {
         onScore={handleScoreUpdate}
         onTakeDamage={handleTakeDamage}
       />
+
+      {/* Veo Cinematic Generator Button */}
+      <button 
+        onClick={() => setIsVeoOpen(true)}
+        className="absolute top-4 right-4 z-[60] bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-full font-bold flex items-center gap-2 shadow-lg transition-all border border-white/20 active:scale-95"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
+        CINEMATIC GEN
+      </button>
+
+      {/* Veo Modal */}
+      {isVeoOpen && <VeoAnimator onClose={() => setIsVeoOpen(false)} />}
 
       {/* Hand Tracking Overlay & Camera Feed */}
       <div className="absolute bottom-4 right-4 w-64 h-48 border-2 border-white/20 rounded-lg overflow-hidden bg-black/50 shadow-2xl z-50">
