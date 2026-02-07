@@ -7,9 +7,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev:api": "tsx watch backend/src/server.ts",
+    "build": "npm run build:api && npm run build:web",
+    "build:web": "tsc --noEmit && vite build",
+    "build:api": "tsc -p backend/tsconfig.json",
     "preview": "vite preview --host",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p backend/tsconfig.json --noEmit",
+    "start:api": "node backend/dist/server.js",
+    "test:api": "vitest run --config backend/vitest.config.ts"
   },
   "keywords": [
     "fps",
@@ -21,13 +26,22 @@
   "author": "Matheus Siqueira",
   "license": "MIT",
   "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/jwt": "^10.0.0",
+    "@fastify/rate-limit": "^10.3.0",
     "@google/genai": "^1.40.0",
     "@react-three/drei": "^10.0.0",
     "@react-three/fiber": "^9.0.0",
     "@types/three": "^0.182.0",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.2",
+    "fastify": "^5.6.0",
+    "nanoid": "^5.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "^0.182.0"
+    "three": "^0.182.0",
+    "zod": "^4.1.4"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
@@ -35,6 +49,8 @@
     "@types/react-dom": "^19.0.5",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "^5.9.2",
-    "vite": "^7.0.5"
+    "tsx": "^4.20.5",
+    "vite": "^7.0.5",
+    "vitest": "^3.2.4"
   }
 }

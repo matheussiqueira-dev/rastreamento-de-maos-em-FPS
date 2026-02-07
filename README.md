@@ -1,122 +1,103 @@
-# GestureStrike FPS Frontend
+# GestureStrike Backend
 
-Aplicação frontend de um FPS web controlado por gestos manuais, com renderização 3D em tempo real, painel tático e experiência orientada a usabilidade.
+Backend modular para o ecossistema GestureStrike, responsável por autenticação, ingestão de telemetria de partidas, gerenciamento de calibração e ranking global.
 
-## Visão Geral do Frontend
+## Visão Geral do Backend
 
-Este projeto entrega uma experiência de gameplay no navegador em que:
+Domínio principal:
 
-- a webcam captura landmarks das mãos com MediaPipe
-- os gestos são convertidos em comandos de movimentação/combate
-- o motor 3D exibe a cena FPS com HUD em tempo real
-- o usuário pode calibrar o rastreamento e ajustar preferências de UX/performance
+- autenticar jogadores e controlar acesso por papel (`PLAYER`, `ADMIN`)
+- receber resultados de partidas de forma segura
+- gerar métricas consolidadas para evolução de produto e gameplay
+- armazenar preferências de calibração de rastreamento
+- expor leaderboard para comparação entre jogadores
 
-Público-alvo:
+Regras de negócio implementadas:
 
-- usuários finais que querem interação hands-free
-- times de produto/engenharia explorando interfaces naturais
-- desenvolvedores frontend/game web interessados em visão computacional aplicada
+- e-mail único por usuário
+- senha forte obrigatória no cadastro
+- endpoints protegidos por JWT
+- validação rígida de payloads com limites de faixa
+- controle de acesso por role no módulo administrativo
 
-## Stack e Tecnologias
+## Arquitetura Adotada
 
-- `React 19`
-- `TypeScript`
-- `Vite 7`
-- `Three.js`
-- `@react-three/fiber`
-- `@react-three/drei`
-- `@google/genai` (módulo opcional de geração cinematográfica)
-- `MediaPipe Hands` (via CDN)
-- CSS customizado com tokens de design (`styles.css`)
+Arquitetura: **Monólito modular (modular monolith)** com separação por responsabilidade.
 
-## Análise Técnica Aplicada
+- `config`: carregamento e validação de ambiente
+- `domain`: tipos e contratos de entrada
+- `services`: regras de aplicação (auth/matches)
+- `infrastructure`: persistência em arquivo JSON com escrita atômica
+- `http`: camada de transporte, middlewares e rotas versionadas (`/api/v1`)
+- `shared`: utilidades transversais (erros, validação)
 
-Durante a revisão frontend, os principais pontos endereçados foram:
+Princípios aplicados:
 
-- simplificação do fluxo de estado com reducer previsível
-- redução de acoplamento entre UI e regras de gameplay
-- remoção de código duplicado/morto (`VeoAnimator`)
-- melhora de renderização com split de chunks e lazy loading
-- reforço de acessibilidade semântica e navegação por teclado
-- melhorias de SEO técnico no `index.html`
+- SOLID (especialmente SRP e DIP no desacoplamento de serviços/repositório)
+- DRY (reuso de validação e erros)
+- Clean Architecture pragmática (camadas com fronteiras claras)
 
-## Otimizações e Refactor
+## Tecnologias Utilizadas
 
-### Arquitetura
+- Node.js + TypeScript
+- Fastify
+- `@fastify/jwt`
+- `@fastify/helmet`
+- `@fastify/cors`
+- `@fastify/rate-limit`
+- Zod (validação de contratos)
+- bcryptjs (hash de senha)
+- nanoid (IDs)
+- Vitest (testes de API)
 
-- Estado centralizado em `App.tsx` com ações explícitas.
-- Configurações de gameplay extraídas para `config/gameConfig.ts`.
-- Tipagem de domínio expandida em `types.ts`.
+## Segurança e Confiabilidade
 
-### Performance
+Implementado:
 
-- `React.lazy` para `GameContainer` e `CinematicGenerator`.
-- Manual chunks no Vite (`vendor-three`, `vendor-genai`).
-- Modo Performance para reduzir custo de render em dispositivos limitados.
-- Loop de tracker pausado com baixa frequência quando o jogo não está ativo.
+- autenticação JWT para rotas protegidas
+- autorização baseada em role (`ADMIN`)
+- validação de entrada com Zod em todos os endpoints de negócio
+- rate limiting global para mitigação de abuso
+- headers de segurança via Helmet
+- tratamento centralizado de erros com códigos padronizados
+- hashing de senha com bcrypt
+- CORS controlado por allowlist
 
-### Acessibilidade e UX
+Observações de segurança:
 
-- `aria` em diálogos e regiões críticas.
-- `skip link` para navegação rápida por teclado.
-- foco visível padronizado (`:focus-visible`).
-- `aria-live` para status operacional.
-- painel de ajuda com gestos + atalhos (`H`, `?`, `P`, `C`, `Esc`).
-- persistência de preferências (dificuldade, haptics, redução de movimento, performance, calibração).
+- CSRF mitigado por design: autenticação via header `Authorization` (sem cookie de sessão)
+- SQLi reduzido por arquitetura atual (persistência JSON sem camada SQL)
+- XSS mitigado no backend por resposta JSON estruturada e validação de payload
 
-### SEO Técnico
+## API e Contratos
 
-- `meta description`, `robots`, `theme-color`
-- metatags Open Graph/Twitter
-- `noscript` de fallback
+Versão de API:
 
-## Novas Funcionalidades Implementadas
+- `v1` sob prefixo `/api/v1`
 
-1. Persistência de preferências no `localStorage`
-- melhora continuidade da experiência entre sessões
-- reduz fricção de reconfiguração
+Principais endpoints:
 
-2. Painel de ajuda contextual
-- reduz curva de aprendizado dos gestos e atalhos
-- aumenta usabilidade em sessões curtas
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `PUT /api/v1/profile/calibration`
+- `GET /api/v1/profile/calibration`
+- `POST /api/v1/matches`
+- `GET /api/v1/matches/me`
+- `GET /api/v1/matches/summary`
+- `GET /api/v1/leaderboard`
+- `GET /api/v1/admin/metrics` (admin)
 
-3. Modo Performance
-- reduz carga visual/GPU mantendo jogabilidade
-- melhora experiência em notebooks e máquinas mais simples
+Documentação de contrato:
 
-## Estrutura do Projeto
-
-```txt
-.
-├── App.tsx
-├── index.tsx
-├── index.html
-├── styles.css
-├── types.ts
-├── global.d.ts
-├── hooks/
-│   └── usePersistentState.ts
-├── config/
-│   └── gameConfig.ts
-├── components/
-│   ├── CalibrationPanel.tsx
-│   ├── CinematicGenerator.tsx
-│   ├── GameContainer.tsx
-│   ├── HandTracker.tsx
-│   ├── HelpPanel.tsx
-│   └── HUD.tsx
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
-```
+- `backend/docs/openapi.yaml`
+- `backend/docs/API_REFERENCE.md`
 
 ## Setup e Execução
 
 ## Pré-requisitos
 
-- `Node.js` 20+
-- webcam habilitada
-- navegador com WebGL
+- Node.js 20+
 
 ## Instalação
 
@@ -124,45 +105,116 @@ Durante a revisão frontend, os principais pontos endereçados foram:
 npm install
 ```
 
-## Ambiente de desenvolvimento
+## Ambiente
+
+Copie o arquivo de exemplo:
 
 ```bash
-npm run dev
+cp backend/.env.example .env
 ```
 
-Aplicação em `http://localhost:3000`.
+Variáveis críticas:
 
-## Build de produção
+- `BACKEND_JWT_SECRET`
+- `BACKEND_CORS_ORIGINS`
+- `BACKEND_DATA_FILE`
+
+## Executar backend (dev)
 
 ```bash
-npm run build
-npm run preview
+npm run dev:api
 ```
 
-## Variável opcional
+Servidor padrão:
 
-```env
-VITE_GEMINI_API_KEY=sua_chave
+- `http://localhost:8787`
+
+Health check:
+
+- `GET http://localhost:8787/api/v1/health`
+
+## Build
+
+```bash
+npm run build:api
 ```
 
-Se não informar no `.env`, a chave pode ser inserida no modal cinematográfico.
+## Testes
 
-## Boas Práticas Adotadas
+```bash
+npm run test:api
+```
 
-- componentização orientada a responsabilidade
-- tokenização visual para consistência do design system
-- tratamento de erro de câmera e fallback de módulos
-- controle de estado previsível e tipado
-- UI responsiva com comportamento mobile/desktop
-- foco em acessibilidade e teclado
+## Estrutura do Projeto (Backend)
+
+```text
+backend/
+├── .env.example
+├── docs/
+│   ├── API_REFERENCE.md
+│   └── openapi.yaml
+├── src/
+│   ├── app.ts
+│   ├── server.ts
+│   ├── fastify.d.ts
+│   ├── config/
+│   │   └── env.ts
+│   ├── domain/
+│   │   ├── schemas.ts
+│   │   └── types.ts
+│   ├── http/
+│   │   ├── auth-guard.ts
+│   │   └── routes/
+│   │       ├── admin-routes.ts
+│   │       ├── auth-routes.ts
+│   │       ├── match-routes.ts
+│   │       ├── profile-routes.ts
+│   │       └── status-routes.ts
+│   ├── infrastructure/
+│   │   └── store/
+│   │       ├── json-file-store.ts
+│   │       └── store-repository.ts
+│   ├── services/
+│   │   ├── auth-service.ts
+│   │   └── match-service.ts
+│   └── shared/
+│       ├── app-error.ts
+│       └── validate.ts
+├── tsconfig.json
+└── vitest.config.ts
+```
+
+## Boas Práticas e Padrões
+
+- validação de payload na borda da aplicação
+- uso de DTOs tipados e erros padronizados
+- separação entre regras de domínio e transporte HTTP
+- persistência com escrita atômica para evitar corrupção de arquivo
+- testes de integração por `inject` cobrindo fluxos críticos
+- versionamento explícito de API para evolução sem quebra
+
+## Novas Features Implementadas (Backend)
+
+1. Módulo de autenticação e autorização JWT
+- impacto: habilita controle de acesso seguro por perfil de usuário
+
+2. Pipeline de ingestão de partidas + leaderboard
+- impacto: permite análise de performance e ranking entre jogadores
+
+3. Persistência de calibração por usuário
+- impacto: melhora continuidade e personalização da experiência
+
+4. Telemetria operacional administrativa
+- impacto: aumenta observabilidade para manutenção em produção
 
 ## Melhorias Futuras
 
-- testes automatizados (unitários + e2e)
-- persistência de histórico de partidas (leaderboard local/remoto)
-- internacionalização (`pt-BR` / `en`)
-- observabilidade frontend (Sentry + Web Vitals)
-- backend para geração cinematográfica sem chave exposta no client
+- migração de persistência JSON para PostgreSQL
+- refresh tokens com rotação e lista de revogação
+- auditoria de segurança com trilha de eventos
+- métricas Prometheus + tracing OpenTelemetry
+- CI/CD com quality gates (lint, test, coverage, SAST)
+- documentação OpenAPI completa com schemas detalhados
 
 ---
 

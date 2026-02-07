@@ -42,10 +42,11 @@ const HelpPanel: React.FC<HelpPanelProps> = ({ onClose }) => {
           <article>
             <h3>Atalhos de teclado</h3>
             <ul>
-              <li>`P`: pausar/retomar</li>
-              <li>`C`: abrir calibração</li>
-              <li>`H` ou `?`: abrir ajuda</li>
-              <li>`Esc`: fechar modais</li>
+              <li>P: pausar/retomar</li>
+              <li>C: abrir calibração</li>
+              <li>V: abrir modo cinematográfico</li>
+              <li>H ou ?: abrir ajuda</li>
+              <li>Esc: fechar modais</li>
             </ul>
           </article>
         </div>

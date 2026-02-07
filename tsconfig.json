@@ -17,6 +17,15 @@
     },
     "noEmit": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "global.d.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "App.tsx",
+    "index.tsx",
+    "global.d.ts",
+    "types.ts",
+    "vite.config.ts",
+    "config/**/*.ts",
+    "components/**/*.tsx",
+    "hooks/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "backend"]
 }

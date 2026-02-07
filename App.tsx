@@ -163,6 +163,13 @@ const STORAGE_KEYS = {
   calibration: 'gesturestrike:settings:calibration',
 } as const;
 
+interface UXToast {
+  id: number;
+  tone: 'info' | 'success';
+  title: string;
+  description: string;
+}
+
 const isDifficultyLevel = (value: unknown): value is DifficultyLevel =>
   value === 'CASUAL' || value === 'TACTICAL' || value === 'INSANE';
 
@@ -208,8 +215,10 @@ const App: React.FC = () => {
   const [performanceMode, setPerformanceMode] = usePersistentState<boolean>(STORAGE_KEYS.performanceMode, false);
   const [clockNow, setClockNow] = useState(Date.now());
   const [isDamageFlashVisible, setIsDamageFlashVisible] = useState(false);
+  const [uxToast, setUxToast] = useState<UXToast | null>(null);
   const stepCycleRef = useRef(0);
   const reloadTimeoutRef = useRef<number | null>(null);
+  const firstRenderRef = useRef(true);
 
   const triggerHaptic = useCallback(
     (pattern: number | readonly number[]) => {
@@ -220,6 +229,33 @@ const App: React.FC = () => {
       }
     },
     [hapticsEnabled],
+  );
+
+  const pushToast = useCallback((tone: UXToast['tone'], title: string, description: string) => {
+    setUxToast({
+      id: Date.now(),
+      tone,
+      title,
+      description,
+    });
+  }, []);
+
+  const applyPreset = useCallback(
+    (preset: 'COMPETITIVE' | 'COMFORT') => {
+      if (preset === 'COMPETITIVE') {
+        setHapticsEnabled(true);
+        setReduceMotion(false);
+        setPerformanceMode(false);
+        pushToast('success', 'Preset competitivo aplicado', 'Maior fidelidade visual e feedback háptico ativado.');
+        return;
+      }
+
+      setHapticsEnabled(false);
+      setReduceMotion(true);
+      setPerformanceMode(true);
+      pushToast('success', 'Preset conforto aplicado', 'Movimento reduzido e modo performance ativados.');
+    },
+    [pushToast, setHapticsEnabled, setPerformanceMode, setReduceMotion],
   );
 
   const startMatch = useCallback(() => {
@@ -314,6 +350,10 @@ const App: React.FC = () => {
         setIsCalibrationOpen((previous) => !previous);
       }
 
+      if (event.key.toLowerCase() === 'v' && gameState.status === GameStatus.PLAYING) {
+        setIsCinematicOpen(true);
+      }
+
       if (event.key.toLowerCase() === 'h' || event.key === '?') {
         setIsHelpOpen((previous) => !previous);
       }
@@ -327,6 +367,27 @@ const App: React.FC = () => {
     window.addEventListener('keydown', keyHandler);
     return () => window.removeEventListener('keydown', keyHandler);
   }, [gameState.status, pauseMatch, resumeMatch]);
+
+  useEffect(() => {
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
+
+    pushToast(
+      'info',
+      'Preferências atualizadas',
+      `${hapticsEnabled ? 'Haptics on' : 'Haptics off'} • ${reduceMotion ? 'Motion reduzido' : 'Motion padrão'} • ${
+        performanceMode ? 'Modo performance' : 'Modo visual completo'
+      }`,
+    );
+  }, [hapticsEnabled, performanceMode, reduceMotion, pushToast]);
+
+  useEffect(() => {
+    if (!uxToast) return;
+    const timeout = window.setTimeout(() => setUxToast(null), 2600);
+    return () => window.clearTimeout(timeout);
+  }, [uxToast]);
 
   useEffect(
     () => () => {
@@ -348,6 +409,7 @@ const App: React.FC = () => {
     if (gameState.stats.shotsFired === 0) return 0;
     return (gameState.stats.shotsHit / gameState.stats.shotsFired) * 100;
   }, [gameState.stats.shotsFired, gameState.stats.shotsHit]);
+  const selectedProfile = DIFFICULTY_PROFILES[selectedDifficulty];
 
   const isMenu = gameState.status === GameStatus.MENU;
   const isPlaying = gameState.status === GameStatus.PLAYING;
@@ -395,30 +457,37 @@ const App: React.FC = () => {
       </Suspense>
 
       {isPlaying || isPaused ? (
-        <div className="control-strip" id="mission-controls">
-          <button
-            type="button"
-            className="pill-btn"
-            onClick={() => setIsCalibrationOpen((previous) => !previous)}
-            aria-pressed={isCalibrationOpen}
-          >
-            Calibração
-          </button>
-          <button type="button" className="pill-btn" onClick={() => setIsCinematicOpen(true)}>
-            Cinemática
-          </button>
-          <button
-            type="button"
-            className="pill-btn"
-            onClick={() => setIsHelpOpen((previous) => !previous)}
-            aria-pressed={isHelpOpen}
-          >
-            Ajuda
-          </button>
-          <button type="button" className="pill-btn" onClick={isPaused ? resumeMatch : pauseMatch}>
-            {isPaused ? 'Retomar' : 'Pausar'}
-          </button>
-        </div>
+        <nav className="command-bar" id="mission-controls" aria-label="Comandos da missão">
+          <p>Comandos da Missão</p>
+          <div className="control-strip">
+            <button
+              type="button"
+              className="pill-btn with-kbd"
+              onClick={() => setIsCalibrationOpen((previous) => !previous)}
+              aria-pressed={isCalibrationOpen}
+            >
+              <span>Calibração</span>
+              <kbd>C</kbd>
+            </button>
+            <button type="button" className="pill-btn with-kbd" onClick={() => setIsCinematicOpen(true)}>
+              <span>Cinemática</span>
+              <kbd>V</kbd>
+            </button>
+            <button
+              type="button"
+              className="pill-btn with-kbd"
+              onClick={() => setIsHelpOpen((previous) => !previous)}
+              aria-pressed={isHelpOpen}
+            >
+              <span>Ajuda</span>
+              <kbd>H</kbd>
+            </button>
+            <button type="button" className="pill-btn with-kbd" onClick={isPaused ? resumeMatch : pauseMatch}>
+              <span>{isPaused ? 'Retomar' : 'Pausar'}</span>
+              <kbd>P</kbd>
+            </button>
+          </div>
+        </nav>
       ) : null}
 
       <aside className="tracker-dock" aria-label="Pré-visualização do rastreamento das mãos">
@@ -478,31 +547,71 @@ const App: React.FC = () => {
       {isMenu ? (
         <section className="overlay-root" role="dialog" aria-modal="true" aria-labelledby="menu-title">
           <div className="overlay-card menu-card">
-            <p>GestureStrike Neural Arena</p>
-            <h1 id="menu-title">Controle FPS por Gestos</h1>
-            <p>
-              Mão esquerda para deslocamento, mão direita para combate. Ajuste dificuldade e preferências antes de
-              iniciar.
-            </p>
+            <div className="menu-layout">
+              <div className="menu-intro">
+                <p>GestureStrike Neural Arena</p>
+                <h1 id="menu-title">Controle FPS por Gestos</h1>
+                <p>
+                  Mão esquerda para deslocamento, mão direita para combate. Configure o perfil e entre na missão com
+                  rastreamento calibrado.
+                </p>
 
-            <div className="difficulty-grid">
-              {Object.values(DIFFICULTY_PROFILES).map((profile) => (
-                <button
-                  key={profile.level}
-                  type="button"
-                  className={selectedDifficulty === profile.level ? 'difficulty-card selected' : 'difficulty-card'}
-                  onClick={() => setSelectedDifficulty(profile.level)}
-                >
-                  <strong>{profile.label}</strong>
-                  <span>{profile.description}</span>
-                  <small>
-                    Spawn {Math.round(60000 / profile.spawnIntervalMs)}/min • dano {profile.enemyDamage}
-                  </small>
-                </button>
-              ))}
+                <div className="menu-highlights">
+                  <article>
+                    <small>Tempo de setup</small>
+                    <strong>~2 minutos</strong>
+                  </article>
+                  <article>
+                    <small>Confiabilidade ideal</small>
+                    <strong>Ambiente bem iluminado</strong>
+                  </article>
+                  <article>
+                    <small>Modelo atual</small>
+                    <strong>MediaPipe Hands</strong>
+                  </article>
+                </div>
+
+                <ol className="onboarding-list">
+                  <li>Posicione a câmera na altura do rosto.</li>
+                  <li>Deixe as duas mãos visíveis por 3 segundos.</li>
+                  <li>Escolha dificuldade e preset de experiência.</li>
+                  <li>Inicie a missão e ajuste calibração durante o jogo.</li>
+                </ol>
+              </div>
+
+              <div className="menu-config">
+                <div className="difficulty-grid">
+                  {Object.values(DIFFICULTY_PROFILES).map((profile) => (
+                    <button
+                      key={profile.level}
+                      type="button"
+                      className={selectedDifficulty === profile.level ? 'difficulty-card selected' : 'difficulty-card'}
+                      onClick={() => setSelectedDifficulty(profile.level)}
+                    >
+                      <strong>{profile.label}</strong>
+                      <span>{profile.description}</span>
+                      <small>
+                        Spawn {Math.round(60000 / profile.spawnIntervalMs)}/min • dano {profile.enemyDamage}
+                      </small>
+                    </button>
+                  ))}
+                </div>
+
+                <aside className="difficulty-insight" aria-live="polite">
+                  <small>Dificuldade selecionada</small>
+                  <h3>{selectedProfile.label}</h3>
+                  <p>{selectedProfile.description}</p>
+                  <div className="insight-metrics">
+                    <span>Score x{selectedProfile.scoreMultiplier.toFixed(1)}</span>
+                    <span>Máx. inimigos {selectedProfile.maxEnemies}</span>
+                    <span>Cooldown IA {selectedProfile.enemyAttackCooldownMs}ms</span>
+                  </div>
+                </aside>
+              </div>
             </div>
 
-            <div className="settings-row">
+            <fieldset className="settings-row">
+              <legend>Preferências da sessão</legend>
               <label className="toggle-item">
                 <input
                   type="checkbox"
@@ -530,6 +639,15 @@ const App: React.FC = () => {
                 />
                 Modo performance
               </label>
+            </fieldset>
+
+            <div className="preset-row" aria-label="Presets de experiência">
+              <button type="button" className="secondary-btn" onClick={() => applyPreset('COMPETITIVE')}>
+                Preset competitivo
+              </button>
+              <button type="button" className="secondary-btn" onClick={() => applyPreset('COMFORT')}>
+                Preset conforto
+              </button>
             </div>
 
             <button type="button" className="primary-btn" onClick={startMatch}>
@@ -598,6 +716,13 @@ const App: React.FC = () => {
             </div>
           </div>
         </section>
+      ) : null}
+
+      {uxToast ? (
+        <aside className={uxToast.tone === 'success' ? 'ux-toast success' : 'ux-toast'} role="status" aria-live="polite">
+          <strong>{uxToast.title}</strong>
+          <p>{uxToast.description}</p>
+        </aside>
       ) : null}
 
       <footer className="credit-badge">Matheus Siqueira • GestureStrike v2.0</footer>

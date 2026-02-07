@@ -1,0 +1,63 @@
+openapi: 3.0.3
+info:
+  title: GestureStrike Backend API
+  version: 1.0.0
+  description: API backend para autenticação, perfil de calibração e telemetria de partidas.
+servers:
+  - url: http://localhost:8787/api/v1
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Serviço ativo
+  /auth/register:
+    post:
+      summary: Registra um usuário
+  /auth/login:
+    post:
+      summary: Autentica um usuário
+  /auth/me:
+    get:
+      summary: Retorna perfil autenticado
+      security:
+        - bearerAuth: []
+  /profile/calibration:
+    get:
+      summary: Retorna calibração do usuário
+      security:
+        - bearerAuth: []
+    put:
+      summary: Atualiza calibração do usuário
+      security:
+        - bearerAuth: []
+  /matches:
+    post:
+      summary: Registra resultado de partida
+      security:
+        - bearerAuth: []
+  /matches/me:
+    get:
+      summary: Lista partidas do usuário autenticado
+      security:
+        - bearerAuth: []
+  /matches/summary:
+    get:
+      summary: Resumo estatístico do usuário
+      security:
+        - bearerAuth: []
+  /leaderboard:
+    get:
+      summary: Ranking global
+  /admin/metrics:
+    get:
+      summary: Métricas operacionais (admin)
+      security:
+        - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
