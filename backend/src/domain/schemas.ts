@@ -52,3 +52,20 @@ export const leaderboardQuerySchema = paginationSchema.extend({
 export const summaryQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(365).default(30),
 });
+
+const imagePayloadSchema = z.object({
+  base64: z
+    .string()
+    .min(1)
+    .max(8_000_000)
+    .regex(/^[A-Za-z0-9+/=]+$/, 'Imagem inválida em base64.'),
+  mimeType: z
+    .string()
+    .regex(/^image\/(png|jpeg|jpg|webp)$/i, 'Formato de imagem não suportado.'),
+});
+
+export const cinematicGenerationSchema = z.object({
+  prompt: z.string().min(12).max(340),
+  aspectRatio: z.enum(['16:9', '9:16']),
+  image: imagePayloadSchema,
+});

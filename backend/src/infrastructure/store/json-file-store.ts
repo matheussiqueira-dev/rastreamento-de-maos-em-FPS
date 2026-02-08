@@ -53,13 +53,22 @@ export class JsonFileStore {
   }
 
   async read<T>(selector: (state: StoreState) => T): Promise<T> {
-    return selector(this.state);
+    return selector(structuredClone(this.state));
   }
 
   async write<T>(mutator: (state: StoreState) => T | Promise<T>): Promise<T> {
-    const result = await mutator(this.state);
-    this.writeQueue = this.writeQueue.then(() => this.persist());
-    await this.writeQueue;
+    let result!: T;
+    const operation = this.writeQueue.then(async () => {
+      result = await mutator(this.state);
+      await this.persist();
+    });
+
+    this.writeQueue = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    await operation;
     return result;
   }
 

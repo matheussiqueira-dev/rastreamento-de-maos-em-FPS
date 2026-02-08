@@ -12,8 +12,12 @@ const parseToken = (request: FastifyRequest) => {
 
 export const requireAuth = async (request: FastifyRequest, _reply: FastifyReply) => {
   const token = parseToken(request);
-  const payload = await request.server.jwt.verify<AuthTokenPayload>(token);
-  request.auth = payload;
+  try {
+    const payload = await request.server.jwt.verify<AuthTokenPayload>(token);
+    request.auth = payload;
+  } catch {
+    throw new AppError('Token inválido ou expirado.', 401, 'UNAUTHORIZED');
+  }
 };
 
 export const requireRole = (role: UserRole) => async (request: FastifyRequest, _reply: FastifyReply) => {

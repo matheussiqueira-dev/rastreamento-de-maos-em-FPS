@@ -14,7 +14,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-three': ['three', '@react-three/fiber', '@react-three/drei'],
-          'vendor-genai': ['@google/genai'],
         },
       },
     },

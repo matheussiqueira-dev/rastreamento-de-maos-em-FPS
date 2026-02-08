@@ -10,6 +10,7 @@ const envSchema = z.object({
   BACKEND_RATE_LIMIT_WINDOW: z.string().default('1 minute'),
   BACKEND_CORS_ORIGINS: z.string().default('http://localhost:3000'),
   BACKEND_DATA_FILE: z.string().default(path.resolve('backend/data/store.json')),
+  BACKEND_GEMINI_API_KEY: z.string().min(20).optional(),
   BACKEND_ADMIN_EMAIL: z.string().email().optional(),
   BACKEND_ADMIN_PASSWORD: z.string().min(8).optional(),
 });
@@ -23,6 +24,7 @@ export type AppConfig = {
   rateLimitWindow: string;
   corsOrigins: string[];
   dataFile: string;
+  geminiApiKey?: string;
   bootstrapAdmin?: { email: string; password: string };
 };
 
@@ -49,6 +51,7 @@ export const loadConfig = (): AppConfig => {
     dataFile: path.isAbsolute(parsed.BACKEND_DATA_FILE)
       ? parsed.BACKEND_DATA_FILE
       : path.resolve(parsed.BACKEND_DATA_FILE),
+    geminiApiKey: parsed.BACKEND_GEMINI_API_KEY?.trim() || undefined,
     bootstrapAdmin,
   };
 };

@@ -24,8 +24,10 @@
     "types.ts",
     "vite.config.ts",
     "config/**/*.ts",
+    "domain/**/*.ts",
     "components/**/*.tsx",
-    "hooks/**/*.ts"
+    "hooks/**/*.ts",
+    "services/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", "backend"]
 }

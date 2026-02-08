@@ -50,6 +50,42 @@ paths:
   /leaderboard:
     get:
       summary: Ranking global
+  /cinematics/generate:
+    post:
+      summary: Gera sequência de vídeo a partir de imagem de referência
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+                - aspectRatio
+                - image
+              properties:
+                prompt:
+                  type: string
+                  minLength: 12
+                  maxLength: 340
+                aspectRatio:
+                  type: string
+                  enum: ['16:9', '9:16']
+                image:
+                  type: object
+                  required:
+                    - base64
+                    - mimeType
+                  properties:
+                    base64:
+                      type: string
+                    mimeType:
+                      type: string
+      responses:
+        '200':
+          description: Vídeo gerado com sucesso
+        '503':
+          description: Serviço indisponível por ausência de chave no backend
   /admin/metrics:
     get:
       summary: Métricas operacionais (admin)

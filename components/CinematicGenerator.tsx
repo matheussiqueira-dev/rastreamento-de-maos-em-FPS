@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import { AspectRatio, generateCinematicVideo } from '../services/api-client';
 
 interface CinematicGeneratorProps {
   onClose: () => void;
@@ -8,22 +8,34 @@ interface CinematicGeneratorProps {
 const DEFAULT_PROMPT =
   'Crie uma cena cinematográfica suave com deslocamento de câmera, luz volumétrica e sensação de tensão tática.';
 
-const joinKeyToUri = (uri: string, apiKey: string) =>
-  `${uri}${uri.includes('?') ? '&' : '?'}key=${encodeURIComponent(apiKey)}`;
+const parseImageDataUrl = (dataUrl: string) => {
+  const [metadata, base64] = dataUrl.split(',');
+  const mimeType = metadata?.split(';')[0]?.replace('data:', '') || '';
+  if (!base64 || !mimeType) {
+    throw new Error('Formato de imagem inválido.');
+  }
+  return {
+    base64,
+    mimeType,
+  };
+};
+
+const isAllowedImageType = (mimeType: string) => /image\/(png|jpeg|jpg|webp)/i.test(mimeType);
 
 const CinematicGenerator: React.FC<CinematicGeneratorProps> = ({ onClose }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
-  const [apiKey, setApiKey] = useState(import.meta.env.VITE_GEMINI_API_KEY ?? '');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
+      requestAbortRef.current?.abort();
       if (generatedVideoUrl?.startsWith('blob:')) {
         URL.revokeObjectURL(generatedVideoUrl);
       }
@@ -34,16 +46,20 @@ const CinematicGenerator: React.FC<CinematicGeneratorProps> = ({ onClose }) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!isAllowedImageType(file.type)) {
+      setError('Formato de imagem não suportado. Use PNG, JPG ou WEBP.');
+      return;
+    }
+
+    if (file.size > 4 * 1024 * 1024) {
+      setError('Imagem muito grande. Use no máximo 4MB.');
+      return;
+    }
+
+    setError('');
     const reader = new FileReader();
     reader.onloadend = () => setSelectedImage(reader.result as string);
     reader.readAsDataURL(file);
-  };
-
-  const requestApiKeyFromBridge = async () => {
-    if (!window.aistudio) return false;
-    const hasKey = await window.aistudio.hasSelectedApiKey();
-    if (!hasKey) await window.aistudio.openSelectKey();
-    return true;
   };
 
   const startGeneration = async () => {
@@ -59,69 +75,44 @@ const CinematicGenerator: React.FC<CinematicGeneratorProps> = ({ onClose }) => {
       return null;
     });
 
+    requestAbortRef.current?.abort();
+    const abortController = new AbortController();
+    requestAbortRef.current = abortController;
+
     try {
-      let effectiveApiKey = apiKey.trim();
-      if (!effectiveApiKey) {
-        const bridgeHandled = await requestApiKeyFromBridge();
-        if (!bridgeHandled) {
-          throw new Error('Informe uma API Key Gemini válida para gerar vídeo.');
-        }
-        effectiveApiKey = apiKey.trim();
+      const imagePayload = parseImageDataUrl(selectedImage);
+      if (!isAllowedImageType(imagePayload.mimeType)) {
+        throw new Error('Formato de imagem não suportado.');
       }
 
-      const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
-      const [meta, base64Data] = selectedImage.split(',');
-      const mimeType = meta?.split(';')[0]?.split(':')[1] || 'image/png';
-
-      setStatus('Enviando quadro de referência...');
-      let operation = await ai.models.generateVideos({
-        model: 'veo-3.1-fast-generate-preview',
+      setStatus('Enviando quadro de referência para o backend...');
+      const blob = await generateCinematicVideo({
         prompt: prompt.trim() || DEFAULT_PROMPT,
-        image: {
-          imageBytes: base64Data,
-          mimeType,
-        },
-        config: {
-          numberOfVideos: 1,
-          resolution: '720p',
-          aspectRatio,
-        },
+        aspectRatio,
+        image: imagePayload,
+        signal: abortController.signal,
       });
 
-      const progressMessages = [
-        'Analisando composição da cena...',
-        'Aplicando dinâmica temporal...',
-        'Refinando continuidade visual...',
-        'Renderizando sequência final...',
-      ];
-
-      let messageIndex = 0;
-      while (!operation.done) {
-        setStatus(progressMessages[messageIndex % progressMessages.length]);
-        messageIndex += 1;
-        await new Promise((resolve) => setTimeout(resolve, 8000));
-        operation = await ai.operations.getVideosOperation({ operation });
-      }
-
-      const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-      if (!downloadLink) {
-        throw new Error('A API concluiu sem retornar URL de vídeo.');
-      }
-
-      setStatus('Fazendo download seguro da sequência...');
-      const response = await fetch(joinKeyToUri(downloadLink, effectiveApiKey));
-      if (!response.ok) throw new Error('Falha no download do vídeo gerado.');
-
-      const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       setGeneratedVideoUrl(objectUrl);
       setStatus('Sequência renderizada com sucesso.');
     } catch (generationError: any) {
-      setError(generationError?.message || 'Erro inesperado ao gerar sequência.');
-      setStatus('');
+      if (abortController.signal.aborted) {
+        setStatus('');
+        setError('Geração cancelada.');
+      } else {
+        setError(generationError?.message || 'Erro inesperado ao gerar sequência.');
+        setStatus('');
+      }
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const cancelGeneration = () => {
+    requestAbortRef.current?.abort();
+    setIsGenerating(false);
+    setStatus('');
   };
 
   return (
@@ -139,14 +130,8 @@ const CinematicGenerator: React.FC<CinematicGeneratorProps> = ({ onClose }) => {
 
         <div className="cinematic-grid">
           <section className="cinematic-controls">
-            <label className="field-label">API Key Gemini</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-              placeholder="Cole sua API Key"
-              className="field-input"
-            />
+            <label className="field-label">Pipeline</label>
+            <p className="status-caption">A geração usa a API protegida no backend. Nenhuma API key fica no navegador.</p>
 
             <label className="field-label">Prompt</label>
             <textarea
@@ -177,7 +162,7 @@ const CinematicGenerator: React.FC<CinematicGeneratorProps> = ({ onClose }) => {
             <button type="button" onClick={() => fileInputRef.current?.click()} className="secondary-btn">
               {selectedImage ? 'Trocar Imagem' : 'Selecionar Imagem'}
             </button>
-            <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
+            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={handleImageUpload} />
 
             <button
               type="button"
@@ -187,6 +172,12 @@ const CinematicGenerator: React.FC<CinematicGeneratorProps> = ({ onClose }) => {
             >
               {isGenerating ? 'Gerando...' : 'Gerar Vídeo'}
             </button>
+
+            {isGenerating ? (
+              <button type="button" className="ghost-btn" onClick={cancelGeneration}>
+                Cancelar geração
+              </button>
+            ) : null}
 
             {status ? <p className="status-message">{status}</p> : null}
             {error ? <p className="error-message">{error}</p> : null}

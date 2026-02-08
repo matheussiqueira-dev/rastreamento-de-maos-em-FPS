@@ -13,11 +13,14 @@ import { registerProfileRoutes } from './http/routes/profile-routes.js';
 import { registerMatchRoutes } from './http/routes/match-routes.js';
 import { registerAdminRoutes } from './http/routes/admin-routes.js';
 import { registerStatusRoutes } from './http/routes/status-routes.js';
+import { registerCinematicRoutes } from './http/routes/cinematic-routes.js';
 import { AppError } from './shared/app-error.js';
+import { CinematicService, GeminiCinematicService } from './services/cinematic-service.js';
 
 interface BuildAppOptions {
   config?: AppConfig;
   logger?: boolean;
+  cinematicService?: CinematicService | null;
 }
 
 export const buildApp = async (options?: BuildAppOptions) => {
@@ -64,6 +67,8 @@ export const buildApp = async (options?: BuildAppOptions) => {
   const repository = new StoreRepository(store);
   const authService = new AuthService(repository, app.jwt, config);
   const matchService = new MatchService(repository);
+  const cinematicService =
+    options?.cinematicService ?? (config.geminiApiKey ? new GeminiCinematicService(config.geminiApiKey) : null);
 
   if (config.bootstrapAdmin) {
     await authService.bootstrapAdmin(config.bootstrapAdmin.email, config.bootstrapAdmin.password);
@@ -76,6 +81,7 @@ export const buildApp = async (options?: BuildAppOptions) => {
     await registerProfileRoutes(api, { repository });
     await registerMatchRoutes(api, { repository, matchService });
     await registerAdminRoutes(api, { repository });
+    await registerCinematicRoutes(api, { cinematicService });
   }, { prefix: '/api/v1' });
 
   app.setNotFoundHandler((_request, reply) => {

@@ -530,6 +530,120 @@ a {
   font-size: 0.88rem;
 }
 
+.session-insights {
+  margin-top: var(--space-3);
+  border: 1px solid rgba(126, 168, 236, 0.3);
+  border-radius: var(--radius-md);
+  background: linear-gradient(150deg, rgba(9, 16, 30, 0.88), rgba(9, 22, 36, 0.82));
+  padding: 12px;
+}
+
+.session-insights.empty p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.session-insights-head {
+  display: grid;
+  gap: 5px;
+}
+
+.session-insights-head small {
+  font-size: 0.66rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #95cdfb;
+}
+
+.session-insights-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.79rem;
+}
+
+.session-insights h3 {
+  margin: 6px 0 0;
+  font-size: 1.05rem;
+}
+
+.session-metric-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.session-metric-grid article {
+  border: 1px solid rgba(141, 175, 232, 0.27);
+  border-radius: 10px;
+  background: rgba(10, 16, 29, 0.72);
+  padding: 8px 9px;
+}
+
+.session-metric-grid span {
+  display: block;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fbde8;
+}
+
+.session-metric-grid strong {
+  display: block;
+  margin-top: 5px;
+  font-family: 'Space Grotesk', 'Sora', sans-serif;
+  font-size: 1rem;
+}
+
+.session-recommendation {
+  margin: 10px 0 8px;
+  font-size: 0.81rem;
+  color: #d4e6ff;
+}
+
+.session-recommendation strong {
+  color: #91dbff;
+}
+
+.session-recent-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.session-recent-list li {
+  border: 1px solid rgba(141, 175, 232, 0.27);
+  border-radius: 10px;
+  background: rgba(9, 14, 26, 0.7);
+  padding: 8px 10px;
+}
+
+.session-recent-list li > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.session-recent-list strong {
+  font-size: 0.79rem;
+}
+
+.session-recent-list span {
+  font-size: 0.72rem;
+  color: #8ec6f5;
+}
+
+.session-recent-list p {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: #c3d6f2;
+}
+
 .menu-config {
   display: grid;
   gap: var(--space-3);
@@ -605,6 +719,25 @@ a {
   color: var(--muted);
   font-size: 0.86rem;
   line-height: 1.5;
+}
+
+.recommendation-row {
+  border: 1px solid rgba(112, 207, 255, 0.34);
+  border-radius: 12px;
+  background: rgba(9, 21, 37, 0.8);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.recommendation-row p {
+  margin: 0;
+  font-size: 0.83rem;
+  color: #d5e9ff;
+}
+
+.recommendation-row strong {
+  color: #8ee2ff;
 }
 
 .insight-metrics {
@@ -902,6 +1035,13 @@ a:focus-visible {
   font-size: 0.78rem;
 }
 
+.status-caption {
+  margin: 2px 0 4px;
+  color: #a8c3e8;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
 .status-message {
   color: #9bdcff;
 }
@@ -1094,6 +1234,10 @@ a:focus-visible {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+  }
+
+  .session-metric-grid {
+    grid-template-columns: 1fr;
   }
 
   .toggle-item {

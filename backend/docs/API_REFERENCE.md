@@ -28,6 +28,19 @@ Auth:
 - `GET /matches/summary?days=30` (protegido)
 - `GET /leaderboard?limit=20&difficulty=TACTICAL&days=30`
 
+## Cinematics
+
+- `POST /cinematics/generate`
+  - body:
+    - `prompt: string (12..340)`
+    - `aspectRatio: "16:9" | "9:16"`
+    - `image.base64: string`
+    - `image.mimeType: image/png|image/jpeg|image/jpg|image/webp`
+  - resposta:
+    - `video.base64: string`
+    - `video.mimeType: string`
+    - `meta.generatedAt: string`
+
 ## Admin
 
 - `GET /admin/metrics` (protegido, role `ADMIN`)

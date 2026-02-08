@@ -1,220 +1,213 @@
-# GestureStrike Backend
+# GestureStrike FPS - Plataforma Fullstack com Rastreamento de Mãos
 
-Backend modular para o ecossistema GestureStrike, responsável por autenticação, ingestão de telemetria de partidas, gerenciamento de calibração e ranking global.
+Projeto fullstack para experiência FPS em navegador controlada por gestos de mão, com renderização 3D em tempo real, backend modular para autenticação/telemetria e geração cinematográfica via API segura no servidor.
 
-## Visão Geral do Backend
+## Visão Geral do Projeto
 
-Domínio principal:
+### Propósito
+- oferecer um FPS experimental com interação natural por visão computacional
+- permitir evolução contínua do produto com métricas de gameplay e arquitetura escalável
+- manter padrão profissional de UX/UI, segurança e manutenção
 
-- autenticar jogadores e controlar acesso por papel (`PLAYER`, `ADMIN`)
-- receber resultados de partidas de forma segura
-- gerar métricas consolidadas para evolução de produto e gameplay
-- armazenar preferências de calibração de rastreamento
-- expor leaderboard para comparação entre jogadores
+### Público-alvo
+- jogadores e entusiastas de experiências imersivas web
+- times de produto e P&D em interfaces naturais (NUI)
+- portfólio técnico para arquitetura fullstack moderna
 
-Regras de negócio implementadas:
+### Objetivos de negócio
+- reduzir fricção de onboarding
+- aumentar retenção por qualidade de feedback e fluidez
+- instrumentar telemetria para decisões de produto
 
-- e-mail único por usuário
-- senha forte obrigatória no cadastro
-- endpoints protegidos por JWT
-- validação rígida de payloads com limites de faixa
-- controle de acesso por role no módulo administrativo
+## Arquitetura e Decisões Técnicas
 
-## Arquitetura Adotada
+### Estilo arquitetural
+- frontend: React + TypeScript com separação por camadas (`components`, `domain`, `hooks`, `services`)
+- backend: monólito modular em Fastify com fronteiras explícitas (`http`, `services`, `domain`, `infrastructure`, `shared`)
+- persistência: JSON file store com escrita serializada e atômica (fallback simples para ambiente local)
 
-Arquitetura: **Monólito modular (modular monolith)** com separação por responsabilidade.
+### Princípios aplicados
+- SOLID: separação de responsabilidades em serviços, rotas e infraestrutura
+- DRY: validação e contratos centralizados
+- Clean Architecture pragmática: regras no domínio/aplicação, transporte na camada HTTP
 
-- `config`: carregamento e validação de ambiente
-- `domain`: tipos e contratos de entrada
-- `services`: regras de aplicação (auth/matches)
-- `infrastructure`: persistência em arquivo JSON com escrita atômica
-- `http`: camada de transporte, middlewares e rotas versionadas (`/api/v1`)
-- `shared`: utilidades transversais (erros, validação)
+### Decisões relevantes
+1. A API key do pipeline cinematográfico não fica mais no frontend.
+   O cliente chama `POST /api/v1/cinematics/generate` e a chave é lida via `BACKEND_GEMINI_API_KEY`.
+2. O estado principal do jogo foi extraído para a camada `domain` (`domain/game-state.ts`).
+3. O menu inicial ganhou analytics local de sessões com recomendação de dificuldade baseada em histórico.
+4. O backend agora trata JWT inválido como `401` consistente (sem vazar erro interno).
+5. O `JsonFileStore` foi reforçado com leitura imutável e fila de escrita serializada.
 
-Princípios aplicados:
+## Frontend (UX/UI)
 
-- SOLID (especialmente SRP e DIP no desacoplamento de serviços/repositório)
-- DRY (reuso de validação e erros)
-- Clean Architecture pragmática (camadas com fronteiras claras)
+### Melhorias aplicadas
+- refatoração do `App.tsx` para reduzir acoplamento e centralização excessiva
+- adição do `SessionInsightsPanel` com:
+  - média de precisão/duração
+  - melhor score
+  - últimas sessões
+  - recomendação automática de dificuldade
+- evolução visual do design system com novos blocos de analytics e recomendação
+- fluxo cinematográfico mais seguro, com feedback de status e cancelamento
 
-## Tecnologias Utilizadas
+### Acessibilidade e responsividade
+- foco visível, `aria-live`, semântica de diálogo e navegação por teclado
+- layout responsivo para desktop/tablet/mobile
 
-- Node.js + TypeScript
-- Fastify
-- `@fastify/jwt`
-- `@fastify/helmet`
-- `@fastify/cors`
-- `@fastify/rate-limit`
-- Zod (validação de contratos)
-- bcryptjs (hash de senha)
-- nanoid (IDs)
-- Vitest (testes de API)
+## Backend (Lógica, Performance e Segurança)
 
-## Segurança e Confiabilidade
+### Melhorias aplicadas
+- novo endpoint de geração cinematográfica:
+  - `POST /api/v1/cinematics/generate`
+  - validação estrita de prompt, aspect ratio e payload de imagem
+- endurecimento de autenticação:
+  - token inválido/expirado retorna `401` com código `UNAUTHORIZED`
+- consistência de persistência:
+  - escrita serializada com fila
+  - leitura baseada em snapshot para evitar mutações externas
 
-Implementado:
+### Segurança adotada
+- JWT para rotas protegidas
+- autorização por papel (`PLAYER` / `ADMIN`)
+- validação de entrada com Zod
+- rate-limit, CORS controlado, Helmet
+- hash de senha com bcrypt
 
-- autenticação JWT para rotas protegidas
-- autorização baseada em role (`ADMIN`)
-- validação de entrada com Zod em todos os endpoints de negócio
-- rate limiting global para mitigação de abuso
-- headers de segurança via Helmet
-- tratamento centralizado de erros com códigos padronizados
-- hashing de senha com bcrypt
-- CORS controlado por allowlist
+## APIs, Dados e Integrações
 
-Observações de segurança:
+### API versionada
+- prefixo: `/api/v1`
 
-- CSRF mitigado por design: autenticação via header `Authorization` (sem cookie de sessão)
-- SQLi reduzido por arquitetura atual (persistência JSON sem camada SQL)
-- XSS mitigado no backend por resposta JSON estruturada e validação de payload
+### Endpoints principais
+- Auth:
+  - `POST /auth/register`
+  - `POST /auth/login`
+  - `GET /auth/me`
+- Profile:
+  - `GET /profile/calibration`
+  - `PUT /profile/calibration`
+- Matches:
+  - `POST /matches`
+  - `GET /matches/me`
+  - `GET /matches/summary`
+  - `GET /leaderboard`
+- Cinematics:
+  - `POST /cinematics/generate`
+- Admin:
+  - `GET /admin/metrics`
 
-## API e Contratos
-
-Versão de API:
-
-- `v1` sob prefixo `/api/v1`
-
-Principais endpoints:
-
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
-- `GET /api/v1/auth/me`
-- `PUT /api/v1/profile/calibration`
-- `GET /api/v1/profile/calibration`
-- `POST /api/v1/matches`
-- `GET /api/v1/matches/me`
-- `GET /api/v1/matches/summary`
-- `GET /api/v1/leaderboard`
-- `GET /api/v1/admin/metrics` (admin)
-
-Documentação de contrato:
-
+### Contratos e documentação
 - `backend/docs/openapi.yaml`
 - `backend/docs/API_REFERENCE.md`
 
-## Setup e Execução
+## Stack e Tecnologias
 
-## Pré-requisitos
+- Frontend: React 19, TypeScript, Vite, React Three Fiber, Drei, Three.js
+- Tracking: MediaPipe Hands (via scripts CDN)
+- Backend: Node.js 20+, Fastify, Zod, JWT, bcrypt, nanoid
+- Testes: Vitest
 
+## Estrutura do Projeto
+
+```text
+.
+├── App.tsx
+├── components/
+├── config/
+├── domain/
+├── hooks/
+├── services/
+├── backend/
+│   ├── docs/
+│   └── src/
+│       ├── config/
+│       ├── domain/
+│       ├── http/
+│       ├── infrastructure/
+│       ├── services/
+│       └── shared/
+└── docs/
+```
+
+## Instalação e Execução
+
+### Pré-requisitos
 - Node.js 20+
+- npm 10+
 
-## Instalação
+### Instalação
 
 ```bash
 npm install
 ```
 
-## Ambiente
-
-Copie o arquivo de exemplo:
-
-```bash
-cp backend/.env.example .env
-```
+### Variáveis de ambiente
+Crie `.env` na raiz (ou use export no ambiente) com base em `backend/.env.example`.
 
 Variáveis críticas:
-
 - `BACKEND_JWT_SECRET`
 - `BACKEND_CORS_ORIGINS`
 - `BACKEND_DATA_FILE`
+- `BACKEND_GEMINI_API_KEY` (necessária para endpoint cinematográfico)
 
-## Executar backend (dev)
+Opcional frontend:
+- `VITE_API_BASE_URL` (default: `http://localhost:8787/api/v1`)
+
+### Desenvolvimento
 
 ```bash
+# frontend
+npm run dev
+
+# backend (em outro terminal)
 npm run dev:api
 ```
 
-Servidor padrão:
+Frontend: `http://localhost:3000`  
+Backend: `http://localhost:8787`
 
-- `http://localhost:8787`
-
-Health check:
-
-- `GET http://localhost:8787/api/v1/health`
-
-## Build
+### Build
 
 ```bash
-npm run build:api
+npm run build
 ```
 
-## Testes
+### Testes
 
 ```bash
 npm run test:api
 ```
 
-## Estrutura do Projeto (Backend)
+### Typecheck
 
-```text
-backend/
-├── .env.example
-├── docs/
-│   ├── API_REFERENCE.md
-│   └── openapi.yaml
-├── src/
-│   ├── app.ts
-│   ├── server.ts
-│   ├── fastify.d.ts
-│   ├── config/
-│   │   └── env.ts
-│   ├── domain/
-│   │   ├── schemas.ts
-│   │   └── types.ts
-│   ├── http/
-│   │   ├── auth-guard.ts
-│   │   └── routes/
-│   │       ├── admin-routes.ts
-│   │       ├── auth-routes.ts
-│   │       ├── match-routes.ts
-│   │       ├── profile-routes.ts
-│   │       └── status-routes.ts
-│   ├── infrastructure/
-│   │   └── store/
-│   │       ├── json-file-store.ts
-│   │       └── store-repository.ts
-│   ├── services/
-│   │   ├── auth-service.ts
-│   │   └── match-service.ts
-│   └── shared/
-│       ├── app-error.ts
-│       └── validate.ts
-├── tsconfig.json
-└── vitest.config.ts
+```bash
+npm run typecheck
 ```
 
-## Boas Práticas e Padrões
+## Deploy (Diretrizes)
 
-- validação de payload na borda da aplicação
-- uso de DTOs tipados e erros padronizados
-- separação entre regras de domínio e transporte HTTP
-- persistência com escrita atômica para evitar corrupção de arquivo
-- testes de integração por `inject` cobrindo fluxos críticos
-- versionamento explícito de API para evolução sem quebra
+1. Definir segredos reais (`BACKEND_JWT_SECRET`, `BACKEND_GEMINI_API_KEY`).
+2. Restringir `BACKEND_CORS_ORIGINS` para domínios oficiais.
+3. Executar `npm run build` em CI.
+4. Publicar frontend estático e backend Node separadamente.
+5. Monitorar logs, taxa de erro e latência de geração cinematográfica.
 
-## Novas Features Implementadas (Backend)
+## Boas Práticas Adotadas
 
-1. Módulo de autenticação e autorização JWT
-- impacto: habilita controle de acesso seguro por perfil de usuário
+- contratos de entrada/saída com validação centralizada
+- tratamento de erro padronizado
+- separação de camadas e responsabilidades
+- persistência com escrita atômica e serialização de operações
+- cobertura de testes para fluxos críticos de API
 
-2. Pipeline de ingestão de partidas + leaderboard
-- impacto: permite análise de performance e ranking entre jogadores
+## Evolução do Produto (Próximos Passos)
 
-3. Persistência de calibração por usuário
-- impacto: melhora continuidade e personalização da experiência
-
-4. Telemetria operacional administrativa
-- impacto: aumenta observabilidade para manutenção em produção
-
-## Melhorias Futuras
-
-- migração de persistência JSON para PostgreSQL
-- refresh tokens com rotação e lista de revogação
-- auditoria de segurança com trilha de eventos
-- métricas Prometheus + tracing OpenTelemetry
-- CI/CD com quality gates (lint, test, coverage, SAST)
-- documentação OpenAPI completa com schemas detalhados
+1. Migrar persistência para PostgreSQL com repositórios transacionais.
+2. Adicionar autenticação completa no frontend (login/cadastro + sessão).
+3. Persistir analytics de sessão em backend para dashboards históricos.
+4. Implementar observabilidade com OpenTelemetry + Prometheus.
+5. Adicionar suíte E2E de UX crítica (onboarding, gameplay, modais).
 
 ---
 

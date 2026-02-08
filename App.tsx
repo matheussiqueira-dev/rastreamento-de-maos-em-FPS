@@ -3,154 +3,30 @@ import CalibrationPanel from './components/CalibrationPanel';
 import HandTracker from './components/HandTracker';
 import HelpPanel from './components/HelpPanel';
 import HUD from './components/HUD';
+import SessionInsightsPanel from './components/SessionInsightsPanel';
 import {
-  BASE_AMMO,
   DEFAULT_HAND_STATE,
   DEFAULT_TRACKER_CALIBRATION,
   DIFFICULTY_PROFILES,
   HAPTIC_PATTERNS,
-  MAX_HEALTH,
 } from './config/gameConfig';
+import { createInitialState, gameReducer } from './domain/game-state';
+import {
+  appendSessionHistory,
+  deriveSessionInsights,
+  isSessionHistory,
+  SessionSnapshot,
+} from './domain/session-analytics';
+import { formatDuration } from './domain/time';
+import { usePersistentState } from './hooks/usePersistentState';
 import {
   CombatGesture,
   DifficultyLevel,
-  GameState,
   GameStatus,
   HandState,
-  MatchStats,
   MovementGesture,
   TrackerCalibration,
 } from './types';
-import { usePersistentState } from './hooks/usePersistentState';
-
-const createBaseStats = (): MatchStats => ({
-  shotsFired: 0,
-  shotsHit: 0,
-  enemiesDefeated: 0,
-  highestWave: 1,
-  currentStreak: 0,
-  bestStreak: 0,
-  sessionStartedAt: null,
-  sessionEndedAt: null,
-});
-
-const createInitialState = (difficulty: DifficultyLevel = 'EASY'): GameState => ({
-  ammo: BASE_AMMO,
-  maxAmmo: BASE_AMMO,
-  score: 0,
-  health: MAX_HEALTH,
-  status: GameStatus.MENU,
-  isReloading: false,
-  lastDamageTime: 0,
-  isGameOver: false,
-  wave: 1,
-  difficulty,
-  stats: createBaseStats(),
-});
-
-type GameAction =
-  | { type: 'START_MATCH'; difficulty: DifficultyLevel; startedAt: number }
-  | { type: 'RETURN_MENU'; difficulty: DifficultyLevel }
-  | { type: 'PAUSE_MATCH' }
-  | { type: 'RESUME_MATCH' }
-  | { type: 'REGISTER_SHOT'; didHit: boolean }
-  | { type: 'RELOAD_START' }
-  | { type: 'RELOAD_COMPLETE' }
-  | { type: 'TAKE_DAMAGE'; amount: number; at: number }
-  | { type: 'ENEMY_DEFEATED'; points: number }
-  | { type: 'SET_WAVE'; wave: number; at: number };
-
-const gameReducer = (state: GameState, action: GameAction): GameState => {
-  switch (action.type) {
-    case 'START_MATCH':
-      return {
-        ...createInitialState(action.difficulty),
-        status: GameStatus.PLAYING,
-        difficulty: action.difficulty,
-        stats: {
-          ...createBaseStats(),
-          sessionStartedAt: action.startedAt,
-        },
-      };
-    case 'RETURN_MENU':
-      return createInitialState(action.difficulty);
-    case 'PAUSE_MATCH':
-      if (state.status !== GameStatus.PLAYING) return state;
-      return { ...state, status: GameStatus.PAUSED };
-    case 'RESUME_MATCH':
-      if (state.status !== GameStatus.PAUSED) return state;
-      return { ...state, status: GameStatus.PLAYING };
-    case 'REGISTER_SHOT':
-      if (state.status !== GameStatus.PLAYING || state.isReloading || state.ammo <= 0) return state;
-      return {
-        ...state,
-        ammo: state.ammo - 1,
-        stats: {
-          ...state.stats,
-          shotsFired: state.stats.shotsFired + 1,
-          shotsHit: state.stats.shotsHit + (action.didHit ? 1 : 0),
-          currentStreak: action.didHit ? state.stats.currentStreak + 1 : 0,
-          bestStreak: action.didHit
-            ? Math.max(state.stats.bestStreak, state.stats.currentStreak + 1)
-            : state.stats.bestStreak,
-        },
-      };
-    case 'RELOAD_START':
-      if (state.isReloading || state.ammo === state.maxAmmo || state.status !== GameStatus.PLAYING) return state;
-      return { ...state, isReloading: true };
-    case 'RELOAD_COMPLETE':
-      if (!state.isReloading) return state;
-      return { ...state, isReloading: false, ammo: state.maxAmmo };
-    case 'TAKE_DAMAGE': {
-      if (state.status !== GameStatus.PLAYING || state.health <= 0) return state;
-      const newHealth = Math.max(0, state.health - action.amount);
-      const defeated = newHealth <= 0;
-      return {
-        ...state,
-        health: newHealth,
-        lastDamageTime: action.at,
-        status: defeated ? GameStatus.GAMEOVER : state.status,
-        isGameOver: defeated,
-        stats: defeated
-          ? {
-              ...state.stats,
-              sessionEndedAt: action.at,
-            }
-          : state.stats,
-      };
-    }
-    case 'ENEMY_DEFEATED':
-      if (state.status !== GameStatus.PLAYING) return state;
-      return {
-        ...state,
-        score: state.score + action.points,
-        stats: {
-          ...state.stats,
-          enemiesDefeated: state.stats.enemiesDefeated + 1,
-        },
-      };
-    case 'SET_WAVE':
-      if (state.status === GameStatus.MENU) return state;
-      return {
-        ...state,
-        wave: action.wave,
-        stats: {
-          ...state.stats,
-          highestWave: Math.max(action.wave, state.stats.highestWave),
-          sessionEndedAt: state.status === GameStatus.GAMEOVER ? action.at : state.stats.sessionEndedAt,
-        },
-      };
-    default:
-      return state;
-  }
-};
-
-const formatDuration = (milliseconds: number) => {
-  const totalSeconds = Math.floor(milliseconds / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
 
 const CinematicGenerator = React.lazy(() => import('./components/CinematicGenerator'));
 const GameContainer = React.lazy(() => import('./components/GameContainer'));
@@ -161,6 +37,7 @@ const STORAGE_KEYS = {
   reduceMotion: 'gesturestrike:settings:reduceMotion',
   performanceMode: 'gesturestrike:settings:performanceMode',
   calibration: 'gesturestrike:settings:calibration',
+  sessionHistory: 'gesturestrike:analytics:sessionHistory',
 } as const;
 
 interface UXToast {
@@ -194,13 +71,19 @@ const App: React.FC = () => {
     'EASY',
     { validate: isDifficultyLevel },
   );
-  const [gameState, dispatch] = useReducer(gameReducer, createInitialState(selectedDifficulty));
+  const [gameState, dispatch] = useReducer(gameReducer, selectedDifficulty, createInitialState);
   const [handState, setHandState] = useState<HandState>(DEFAULT_HAND_STATE);
   const [trackerCalibration, setTrackerCalibration] = usePersistentState<TrackerCalibration>(
     STORAGE_KEYS.calibration,
     DEFAULT_TRACKER_CALIBRATION,
     { validate: isTrackerCalibration },
   );
+  const [sessionHistory, setSessionHistory] = usePersistentState<SessionSnapshot[]>(
+    STORAGE_KEYS.sessionHistory,
+    [],
+    { validate: isSessionHistory },
+  );
+
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCinematicOpen, setIsCinematicOpen] = useState(false);
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
@@ -219,6 +102,7 @@ const App: React.FC = () => {
   const stepCycleRef = useRef(0);
   const reloadTimeoutRef = useRef<number | null>(null);
   const firstRenderRef = useRef(true);
+  const persistedSessionRef = useRef<number | null>(null);
 
   const triggerHaptic = useCallback(
     (pattern: number | readonly number[]) => {
@@ -409,12 +293,49 @@ const App: React.FC = () => {
     if (gameState.stats.shotsFired === 0) return 0;
     return (gameState.stats.shotsHit / gameState.stats.shotsFired) * 100;
   }, [gameState.stats.shotsFired, gameState.stats.shotsHit]);
-  const selectedProfile = DIFFICULTY_PROFILES[selectedDifficulty];
 
+  const selectedProfile = DIFFICULTY_PROFILES[selectedDifficulty];
   const isMenu = gameState.status === GameStatus.MENU;
   const isPlaying = gameState.status === GameStatus.PLAYING;
   const isPaused = gameState.status === GameStatus.PAUSED;
   const isGameOver = gameState.status === GameStatus.GAMEOVER;
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    persistedSessionRef.current = null;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (!isGameOver) return;
+    const sessionEndedAt = gameState.stats.sessionEndedAt;
+    const sessionStartedAt = gameState.stats.sessionStartedAt;
+    if (!sessionEndedAt || !sessionStartedAt) return;
+    if (persistedSessionRef.current === sessionEndedAt) return;
+
+    const snapshot: SessionSnapshot = {
+      id: sessionEndedAt,
+      endedAt: sessionEndedAt,
+      score: gameState.score,
+      accuracy: Number(matchAccuracy.toFixed(1)),
+      kills: gameState.stats.enemiesDefeated,
+      highestWave: gameState.stats.highestWave,
+      durationMs: Math.max(0, sessionEndedAt - sessionStartedAt),
+      difficulty: gameState.difficulty,
+    };
+
+    setSessionHistory((previous) => appendSessionHistory(previous, snapshot));
+    persistedSessionRef.current = sessionEndedAt;
+  }, [
+    gameState.difficulty,
+    gameState.score,
+    gameState.stats.enemiesDefeated,
+    gameState.stats.highestWave,
+    gameState.stats.sessionEndedAt,
+    gameState.stats.sessionStartedAt,
+    isGameOver,
+    matchAccuracy,
+    setSessionHistory,
+  ]);
 
   useEffect(() => {
     if (!isPlaying || gameState.lastDamageTime === 0) return;
@@ -422,6 +343,11 @@ const App: React.FC = () => {
     const timeout = window.setTimeout(() => setIsDamageFlashVisible(false), 260);
     return () => window.clearTimeout(timeout);
   }, [gameState.lastDamageTime, isPlaying]);
+
+  const sessionInsights = useMemo(() => deriveSessionInsights(sessionHistory), [sessionHistory]);
+  const recommendedProfile = DIFFICULTY_PROFILES[sessionInsights.recommendedDifficulty];
+  const showDifficultyRecommendation =
+    sessionInsights.totalSessions >= 3 && sessionInsights.recommendedDifficulty !== selectedDifficulty;
 
   const accessibilityStatus = useMemo(() => {
     if (cameraError) return `Erro de câmera: ${cameraError}`;
@@ -432,7 +358,18 @@ const App: React.FC = () => {
       return `Jogando. Onda ${gameState.wave}. Vida ${gameState.health} por cento. Munição ${gameState.ammo}.`;
     }
     return 'Aplicação em execução.';
-  }, [cameraError, gameState.ammo, gameState.health, gameState.score, gameState.wave, isGameOver, isMenu, isPaused, isPlaying, selectedDifficulty]);
+  }, [
+    cameraError,
+    gameState.ammo,
+    gameState.health,
+    gameState.score,
+    gameState.wave,
+    isGameOver,
+    isMenu,
+    isPaused,
+    isPlaying,
+    selectedDifficulty,
+  ]);
 
   return (
     <main className="app-shell">
@@ -577,6 +514,8 @@ const App: React.FC = () => {
                   <li>Escolha dificuldade e preset de experiência.</li>
                   <li>Inicie a missão e ajuste calibração durante o jogo.</li>
                 </ol>
+
+                <SessionInsightsPanel insights={sessionInsights} />
               </div>
 
               <div className="menu-config">
@@ -603,10 +542,25 @@ const App: React.FC = () => {
                   <p>{selectedProfile.description}</p>
                   <div className="insight-metrics">
                     <span>Score x{selectedProfile.scoreMultiplier.toFixed(1)}</span>
-                    <span>Máx. inimigos {selectedProfile.maxEnemies}</span>
+                    <span>Max. inimigos {selectedProfile.maxEnemies}</span>
                     <span>Cooldown IA {selectedProfile.enemyAttackCooldownMs}ms</span>
                   </div>
                 </aside>
+
+                {showDifficultyRecommendation ? (
+                  <aside className="recommendation-row">
+                    <p>
+                      Recomendacao automatica: <strong>{recommendedProfile.label}</strong>
+                    </p>
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      onClick={() => setSelectedDifficulty(sessionInsights.recommendedDifficulty)}
+                    >
+                      Aplicar recomendacao
+                    </button>
+                  </aside>
+                ) : null}
               </div>
             </div>
 
@@ -662,7 +616,9 @@ const App: React.FC = () => {
           <div className="overlay-card compact">
             <p>Sessão pausada</p>
             <h2 id="paused-title">Telemetria congelada</h2>
-            <p>Tempo {formatDuration(sessionDurationMs)} • Precisão {matchAccuracy.toFixed(1)}%</p>
+            <p>
+              Tempo {formatDuration(sessionDurationMs)} • Precisão {matchAccuracy.toFixed(1)}%
+            </p>
             <div className="button-row">
               <button type="button" className="primary-btn" onClick={resumeMatch}>
                 Retomar
