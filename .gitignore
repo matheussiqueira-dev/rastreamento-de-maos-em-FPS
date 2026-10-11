@@ -28,3 +28,4 @@ backend/data/*.json
 
 # Local tooling
 .cto-toolkit/
+.claude/
