@@ -25,3 +25,6 @@ backend/data/*.json
 *.njsproj
 *.sln
 *.sw?
+
+# Local tooling
+.cto-toolkit/
