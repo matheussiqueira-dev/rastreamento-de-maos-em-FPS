@@ -1,4 +1,3 @@
-
 {
   "name": "gesture-strike-fps",
   "version": "2.0.0",
@@ -48,9 +47,9 @@
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.5",
     "@vitejs/plugin-react": "^5.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.2",
-    "tsx": "^4.20.5",
     "vite": "^7.0.5",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   }
 }
