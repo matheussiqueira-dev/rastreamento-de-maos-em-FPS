@@ -3,6 +3,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { HandState, MovementGesture, CombatGesture, TrackerCalibration } from '../types';
 import { DEFAULT_HAND_STATE } from '../config/gameConfig';
 
+const MEDIAPIPE_HANDS_VERSION = '0.4.1675469240';
+
 interface HandTrackerProps {
   onUpdate: (state: HandState) => void;
   onError?: (message: string) => void;
@@ -46,8 +48,9 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onError, calibratio
       return;
     }
 
+    // Versão fixada: deve ser a mesma do <script> em index.html (o modelo e o wasm precisam casar com o JS).
     const hands = new window.Hands({
-      locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@${MEDIAPIPE_HANDS_VERSION}/${file}`
     });
 
     hands.setOptions({
@@ -144,14 +147,14 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onError, calibratio
         }
       } catch (err: any) {
         console.error("HandTracker Camera Error:", err);
-        let message = "Could not access camera.";
+        let message = "Não foi possível acessar a câmera.";
         
         if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          message = "No camera device was found. Please check your hardware connection and ensure no other app is using the camera.";
+          message = "Nenhuma câmera encontrada. Verifique a conexão do dispositivo.";
         } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          message = "Camera access denied. Please allow camera permissions in your browser settings to play.";
+          message = "Permissão de câmera negada. Libere o acesso nas configurações do navegador para jogar com gestos.";
         } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-          message = "Camera is already in use by another application or tab.";
+          message = "A câmera já está em uso por outro aplicativo ou aba.";
         } else if (err.message) {
           message = err.message;
         }
@@ -190,8 +193,10 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onError, calibratio
 
     if (wrist.y < centerY - threshold) return MovementGesture.FORWARD;
     if (wrist.y > centerY + threshold) return MovementGesture.BACKWARD;
-    if (wrist.x < centerX - threshold) return MovementGesture.RIGHT;
-    if (wrist.x > centerX + threshold) return MovementGesture.LEFT;
+    // A imagem da webcam não é espelhada: punho com x menor desloca o operador para a esquerda da cena.
+    // (Antes os rótulos LEFT/RIGHT eram invertidos aqui e no motor; o comportamento físico é o mesmo.)
+    if (wrist.x < centerX - threshold) return MovementGesture.LEFT;
+    if (wrist.x > centerX + threshold) return MovementGesture.RIGHT;
 
     return MovementGesture.STOP;
   };
