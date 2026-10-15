@@ -53,7 +53,8 @@ export class AuthService {
       lastLoginAt: null,
     };
 
-    await this.repository.createUser(user);
+    const created = await this.repository.createUserIfEmailAvailable(user);
+    if (!created) throw new AppError('E-mail já cadastrado.', 409, 'CONFLICT');
     return this.issueToken(user);
   }
 

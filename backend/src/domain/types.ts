@@ -1,5 +1,6 @@
 export type UserRole = 'PLAYER' | 'ADMIN';
-export type DifficultyLevel = 'CASUAL' | 'TACTICAL' | 'INSANE';
+export const DIFFICULTY_LEVELS = ['EASY', 'CASUAL', 'TACTICAL', 'INSANE'] as const;
+export type DifficultyLevel = (typeof DIFFICULTY_LEVELS)[number];
 
 export interface CalibrationSettings {
   movementCenterX: number;

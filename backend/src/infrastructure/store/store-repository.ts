@@ -47,11 +47,16 @@ export class StoreRepository {
     return this.store.read((state) => state.users.find((user) => user.id === userId) ?? null);
   }
 
-  async createUser(user: UserRecord) {
-    await this.store.write((state) => {
+  /**
+   * Verifica unicidade do e-mail e insere dentro da mesma operação da fila de escrita,
+   * eliminando a corrida entre dois cadastros simultâneos com o mesmo e-mail.
+   */
+  async createUserIfEmailAvailable(user: UserRecord): Promise<boolean> {
+    return this.store.write((state) => {
+      if (state.users.some((entry) => entry.email === user.email)) return false;
       state.users.push(user);
+      return true;
     });
-    return user;
   }
 
   async updateUserLogin(userId: string, at: string) {
@@ -130,8 +135,9 @@ export class StoreRepository {
         { userId: string; displayName: string; bestScore: number; bestAccuracy: number; totalMatches: number }
       >();
 
+      const usersById = new Map(state.users.map((user) => [user.id, user]));
       for (const match of filtered) {
-        const user = state.users.find((entry) => entry.id === match.userId);
+        const user = usersById.get(match.userId);
         if (!user) continue;
 
         const current = byUser.get(match.userId);

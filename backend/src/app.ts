@@ -14,7 +14,7 @@ import { registerMatchRoutes } from './http/routes/match-routes.js';
 import { registerAdminRoutes } from './http/routes/admin-routes.js';
 import { registerStatusRoutes } from './http/routes/status-routes.js';
 import { registerCinematicRoutes } from './http/routes/cinematic-routes.js';
-import { AppError } from './shared/app-error.js';
+import { AppError, toErrorCode } from './shared/app-error.js';
 import { CinematicService, GeminiCinematicService } from './services/cinematic-service.js';
 
 interface BuildAppOptions {
@@ -27,7 +27,9 @@ export const buildApp = async (options?: BuildAppOptions) => {
   const config = options?.config ?? loadConfig();
   const app = Fastify({
     logger: options?.logger ?? true,
-    disableRequestLogging: false,
+    // Atrás de proxy/load balancer, request.ip passa a refletir o cliente real (X-Forwarded-For),
+    // o que é pré-requisito para o rate limit funcionar por usuário e não pelo IP do proxy.
+    trustProxy: config.trustProxy,
   });
 
   app.decorate('runtimeMetrics', {
@@ -49,7 +51,9 @@ export const buildApp = async (options?: BuildAppOptions) => {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       const isAllowed = config.corsOrigins.includes('*') || config.corsOrigins.includes(origin);
-      return callback(isAllowed ? null : new Error('CORS origin blocked.'), isAllowed);
+      // Origem não autorizada: responde sem cabeçalhos CORS (o navegador bloqueia a leitura).
+      // Lançar erro aqui transformava a requisição em 500 INTERNAL_ERROR.
+      return callback(null, isAllowed);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
@@ -57,7 +61,8 @@ export const buildApp = async (options?: BuildAppOptions) => {
   await app.register(rateLimit, {
     max: config.rateLimitMax,
     timeWindow: config.rateLimitWindow,
-    allowList: ['127.0.0.1'],
+    // Em produção nenhum IP é isento: atrás de proxy reverso todo tráfego chegaria como 127.0.0.1.
+    allowList: config.environment === 'production' ? [] : ['127.0.0.1'],
   });
 
   await app.register(jwt, { secret: config.jwtSecret });
@@ -75,15 +80,9 @@ export const buildApp = async (options?: BuildAppOptions) => {
     app.log.info({ email: config.bootstrapAdmin.email }, 'Admin bootstrap ensured.');
   }
 
-  await app.register(async (api) => {
-    await registerStatusRoutes(api);
-    await registerAuthRoutes(api, { authService });
-    await registerProfileRoutes(api, { repository });
-    await registerMatchRoutes(api, { repository, matchService });
-    await registerAdminRoutes(api, { repository });
-    await registerCinematicRoutes(api, { cinematicService });
-  }, { prefix: '/api/v1' });
-
+  // Os handlers precisam ser registrados ANTES do plugin de rotas: no Fastify um contexto filho herda o
+  // error handler vigente no momento em que é criado. Registrados depois, as rotas de /api/v1 usavam o
+  // handler padrão, que devolvia a mensagem original de erros 500 ao cliente (vazamento de detalhes internos).
   app.setNotFoundHandler((_request, reply) => {
     reply.code(404).send({
       error: 'Not Found',
@@ -103,13 +102,41 @@ export const buildApp = async (options?: BuildAppOptions) => {
       return;
     }
 
+    // Erros do próprio Fastify/plugins (JSON inválido, payload grande, rate limit...) já trazem
+    // um status 4xx; preservamos o status e devolvemos o mesmo contrato de erro da API.
+    const statusCode = typeof (error as { statusCode?: unknown }).statusCode === 'number'
+      ? (error as { statusCode: number }).statusCode
+      : 500;
+    if (statusCode >= 400 && statusCode < 500) {
+      reply.code(statusCode).send({
+        error: error instanceof Error ? error.name : 'Error',
+        message: error instanceof Error ? error.message : 'Requisição inválida.',
+        code: toErrorCode(statusCode),
+        details: null,
+      });
+      return;
+    }
+
     app.log.error(error);
     reply.code(500).send({
       error: 'Internal Server Error',
       message: 'Falha interna no servidor.',
       code: 'INTERNAL_ERROR',
+      details: null,
     });
   });
+
+  await app.register(async (api) => {
+    await registerStatusRoutes(api);
+    await registerAuthRoutes(api, { authService });
+    await registerProfileRoutes(api, { repository });
+    await registerMatchRoutes(api, { repository, matchService });
+    await registerAdminRoutes(api, { repository });
+    await registerCinematicRoutes(api, {
+      cinematicService,
+      rateLimit: { max: config.cinematicRateLimitMax, timeWindow: config.cinematicRateLimitWindow },
+    });
+  }, { prefix: '/api/v1' });
 
   return app;
 };
