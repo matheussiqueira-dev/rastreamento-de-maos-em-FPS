@@ -13,7 +13,9 @@
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit && tsc -p backend/tsconfig.json --noEmit",
     "start:api": "node backend/dist/server.js",
-    "test:api": "vitest run --config backend/vitest.config.ts"
+    "test:api": "vitest run --config backend/vitest.config.ts",
+    "test:web": "vitest run",
+    "test": "npm run test:web && npm run test:api"
   },
   "keywords": [
     "fps",
