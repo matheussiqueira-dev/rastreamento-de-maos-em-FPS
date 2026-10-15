@@ -12,9 +12,12 @@ import {
   Target,
 } from '../types';
 import { DIFFICULTY_PROFILES, WAVE_ENEMY_STEP } from '../config/gameConfig';
+import { TurnAxis } from '../domain/keyboard-input';
 
 interface GameContainerProps {
   handState: HandState;
+  /** Giro horizontal da câmera (modo teclado). O rastreamento de gestos não gira a câmera. */
+  turn: TurnAxis;
   gameState: GameState;
   isMotionReduced: boolean;
   isPerformanceMode: boolean;
@@ -28,6 +31,8 @@ const WORLD_LIMIT = 95;
 const PLAYER_HEIGHT = 1.6;
 const BASE_MOVE_SPEED = 6;
 const WEAPON_COOLDOWN_MS = 240;
+const TURN_SPEED_RADIANS = 2.2;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const ENEMY_SYNC_INTERVAL_SECONDS = 0.1;
 
 const clampPosition = (position: THREE.Vector3) => {
@@ -186,6 +191,7 @@ const Weapon: React.FC<{ combat: CombatGesture; isReloading: boolean }> = ({ com
 
 const GameLogic: React.FC<GameContainerProps> = ({
   handState,
+  turn,
   gameState,
   onShoot,
   onEnemyDefeated,
@@ -233,6 +239,8 @@ const GameLogic: React.FC<GameContainerProps> = ({
     if (gameState.status !== GameStatus.PLAYING || gameState.isGameOver) return;
 
     const now = performance.now();
+    if (turn !== 0) camera.rotateOnWorldAxis(WORLD_UP, -turn * TURN_SPEED_RADIANS * delta);
+
     const playerForward = new THREE.Vector3();
     camera.getWorldDirection(playerForward);
     playerForward.y = 0;
@@ -244,8 +252,8 @@ const GameLogic: React.FC<GameContainerProps> = ({
 
     if (handState.movement === MovementGesture.FORWARD) camera.position.add(playerForward.multiplyScalar(moveSpeed));
     if (handState.movement === MovementGesture.BACKWARD) camera.position.add(playerForward.multiplyScalar(-moveSpeed));
-    if (handState.movement === MovementGesture.LEFT) camera.position.add(playerRight.multiplyScalar(moveSpeed));
-    if (handState.movement === MovementGesture.RIGHT) camera.position.add(playerRight.multiplyScalar(-moveSpeed));
+    if (handState.movement === MovementGesture.LEFT) camera.position.add(playerRight.multiplyScalar(-moveSpeed));
+    if (handState.movement === MovementGesture.RIGHT) camera.position.add(playerRight.multiplyScalar(moveSpeed));
 
     camera.position.y = PLAYER_HEIGHT;
     clampPosition(camera.position);

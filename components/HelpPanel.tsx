@@ -16,7 +16,7 @@ const HelpPanel: React.FC<HelpPanelProps> = ({ onClose }) => {
       <div className="overlay-card compact help-card">
         <p>Guia rápido</p>
         <h2 id="help-title">Comandos e Atalhos</h2>
-        <p>Use este painel para aprender os gestos e os atalhos de teclado durante a partida.</p>
+        <p>Use este painel para aprender os gestos, o modo teclado e os atalhos durante a partida.</p>
 
         <div className="help-grid">
           <article>
@@ -36,6 +36,17 @@ const HelpPanel: React.FC<HelpPanelProps> = ({ onClose }) => {
               <li>Indicador curvado: disparo</li>
               <li>Médio estendido: iron sight</li>
               <li>Mão aberta: recarga</li>
+            </ul>
+          </article>
+
+          <article>
+            <h3>Modo teclado e mouse</h3>
+            <ul>
+              <li>W/S ou ↑/↓: avançar e recuar</li>
+              <li>A/D: strafe</li>
+              <li>Q/E ou ←/→: girar a câmera</li>
+              <li>Espaço ou clique: disparar</li>
+              <li>Shift: iron sight · R: recarregar</li>
             </ul>
           </article>
 

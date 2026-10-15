@@ -60,7 +60,7 @@ export class GeminiCinematicService implements CinematicService {
         throw new AppError(
           'Tempo limite na geração cinematográfica. Tente novamente com outro prompt.',
           504,
-          'INTERNAL_ERROR',
+          'TIMEOUT',
         );
       }
 
@@ -70,12 +70,12 @@ export class GeminiCinematicService implements CinematicService {
 
     const downloadUri = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadUri) {
-      throw new AppError('A geração foi concluída sem retorno de vídeo.', 502, 'INTERNAL_ERROR');
+      throw new AppError('A geração foi concluída sem retorno de vídeo.', 502, 'UPSTREAM_ERROR');
     }
 
     const response = await fetch(joinKeyToUri(downloadUri, this.apiKey));
     if (!response.ok) {
-      throw new AppError('Falha no download do vídeo gerado.', 502, 'INTERNAL_ERROR');
+      throw new AppError('Falha no download do vídeo gerado.', 502, 'UPSTREAM_ERROR');
     }
 
     const mimeType = response.headers.get('content-type') ?? 'video/mp4';

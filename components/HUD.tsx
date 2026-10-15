@@ -6,6 +6,7 @@ interface HUDProps {
   gameState: GameState;
   handState: HandState;
   sessionDurationMs: number;
+  inputMode: 'GESTURE' | 'KEYBOARD';
 }
 
 const formatTime = (milliseconds: number) => {
@@ -15,7 +16,8 @@ const formatTime = (milliseconds: number) => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-const HUD: React.FC<HUDProps> = ({ gameState, handState, sessionDurationMs }) => {
+const HUD: React.FC<HUDProps> = ({ gameState, handState, sessionDurationMs, inputMode }) => {
+  const isKeyboard = inputMode === 'KEYBOARD';
   const difficulty = DIFFICULTY_PROFILES[gameState.difficulty];
   const healthRatio = Math.max(0, Math.min(1, gameState.health / 100));
   const ammoRatio = Math.max(0, Math.min(1, gameState.ammo / gameState.maxAmmo));
@@ -38,11 +40,11 @@ const HUD: React.FC<HUDProps> = ({ gameState, handState, sessionDurationMs }) =>
         <article className="hud-card signal-card">
           <div className="signal-grid">
             <div className={handState.leftHandPresent ? 'signal-item active-left' : 'signal-item'}>
-              <small>Mão Esquerda</small>
+              <small>{isKeyboard ? 'Movimento' : 'Mão Esquerda'}</small>
               <strong>{handState.movement}</strong>
             </div>
             <div className={handState.rightHandPresent ? 'signal-item active-right' : 'signal-item'}>
-              <small>Mão Direita</small>
+              <small>{isKeyboard ? 'Combate' : 'Mão Direita'}</small>
               <strong>{handState.combat}</strong>
             </div>
           </div>

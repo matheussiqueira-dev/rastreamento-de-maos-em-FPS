@@ -18,6 +18,7 @@ import {
   SessionSnapshot,
 } from './domain/session-analytics';
 import { formatDuration } from './domain/time';
+import { useKeyboardControls } from './hooks/useKeyboardControls';
 import { usePersistentState } from './hooks/usePersistentState';
 import {
   CombatGesture,
@@ -38,7 +39,13 @@ const STORAGE_KEYS = {
   performanceMode: 'gesturestrike:settings:performanceMode',
   calibration: 'gesturestrike:settings:calibration',
   sessionHistory: 'gesturestrike:analytics:sessionHistory',
+  inputMode: 'gesturestrike:settings:inputMode',
 } as const;
+
+/** Fonte de entrada do jogador: rastreamento de mãos pela câmera ou teclado/mouse (modo demo). */
+type InputMode = 'GESTURE' | 'KEYBOARD';
+
+const isInputMode = (value: unknown): value is InputMode => value === 'GESTURE' || value === 'KEYBOARD';
 
 interface UXToast {
   id: number;
@@ -84,6 +91,10 @@ const App: React.FC = () => {
     { validate: isSessionHistory },
   );
 
+  const [inputMode, setInputMode] = usePersistentState<InputMode>(STORAGE_KEYS.inputMode, 'GESTURE', {
+    validate: isInputMode,
+  });
+  const [trackerSessionKey, setTrackerSessionKey] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCinematicOpen, setIsCinematicOpen] = useState(false);
   const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
@@ -144,7 +155,6 @@ const App: React.FC = () => {
 
   const startMatch = useCallback(() => {
     dispatch({ type: 'START_MATCH', difficulty: selectedDifficulty, startedAt: Date.now() });
-    setCameraError(null);
     setIsHelpOpen(false);
   }, [selectedDifficulty]);
 
@@ -155,6 +165,36 @@ const App: React.FC = () => {
     setIsHelpOpen(false);
     setHandState(DEFAULT_HAND_STATE);
   }, [selectedDifficulty]);
+
+  const isKeyboardMode = inputMode === 'KEYBOARD';
+  const keyboardIntent = useKeyboardControls(isKeyboardMode && gameState.status === GameStatus.PLAYING);
+  const activeHandState = isKeyboardMode ? keyboardIntent.handState : handState;
+  const turnAxis = isKeyboardMode ? keyboardIntent.turn : 0;
+
+  // Sem câmera (permissão negada, sem dispositivo, em uso), o jogo continua jogável no teclado
+  // em vez de travar a sessão — essencial para demos em que o visitante não libera a webcam.
+  const handleCameraError = useCallback(
+    (message: string) => {
+      setCameraError(message);
+      setInputMode('KEYBOARD');
+      setHandState(DEFAULT_HAND_STATE);
+      pushToast('info', 'Câmera indisponível', 'Modo teclado ativado: WASD move, Q/E gira, Espaço ou clique dispara.');
+    },
+    [pushToast, setInputMode],
+  );
+
+  const selectInputMode = useCallback(
+    (mode: InputMode) => {
+      setInputMode(mode);
+      setHandState(DEFAULT_HAND_STATE);
+      if (mode === 'GESTURE') {
+        // Remonta o rastreador para pedir a câmera de novo, sem recarregar a página.
+        setCameraError(null);
+        setTrackerSessionKey((previous) => previous + 1);
+      }
+    },
+    [setInputMode],
+  );
 
   const pauseMatch = useCallback(() => dispatch({ type: 'PAUSE_MATCH' }), []);
   const resumeMatch = useCallback(() => dispatch({ type: 'RESUME_MATCH' }), []);
@@ -195,19 +235,24 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (gameState.status !== GameStatus.PLAYING) return;
-    if (handState.combat !== CombatGesture.RELOAD) return;
+    if (activeHandState.combat !== CombatGesture.RELOAD) return;
     handleReload();
-  }, [gameState.status, handState.combat, handleReload]);
+  }, [gameState.status, activeHandState.combat, handleReload]);
+
+  // A geração cinematográfica é um modal longo: o jogo pausa para o operador não sofrer dano enquanto isso.
+  useEffect(() => {
+    if (isCinematicOpen && gameState.status === GameStatus.PLAYING) dispatch({ type: 'PAUSE_MATCH' });
+  }, [gameState.status, isCinematicOpen]);
 
   useEffect(() => {
-    if (gameState.status !== GameStatus.PLAYING || handState.movement === MovementGesture.STOP || isCinematicOpen) return;
+    if (gameState.status !== GameStatus.PLAYING || activeHandState.movement === MovementGesture.STOP || isCinematicOpen) return;
     const interval = window.setInterval(() => {
       stepCycleRef.current += 1;
       const onHardSurface = stepCycleRef.current % 12 > 8;
       triggerHaptic(onHardSurface ? HAPTIC_PATTERNS.WALK_HARD : HAPTIC_PATTERNS.WALK_SOFT);
     }, 420);
     return () => window.clearInterval(interval);
-  }, [gameState.status, handState.movement, triggerHaptic, isCinematicOpen]);
+  }, [gameState.status, activeHandState.movement, triggerHaptic, isCinematicOpen]);
 
   useEffect(() => {
     if (gameState.status !== GameStatus.PLAYING && gameState.status !== GameStatus.PAUSED) return;
@@ -350,7 +395,7 @@ const App: React.FC = () => {
     sessionInsights.totalSessions >= 3 && sessionInsights.recommendedDifficulty !== selectedDifficulty;
 
   const accessibilityStatus = useMemo(() => {
-    if (cameraError) return `Erro de câmera: ${cameraError}`;
+    if (isMenu && cameraError) return `Câmera indisponível: ${cameraError}. Modo teclado ativo.`;
     if (isMenu) return `Menu inicial ativo. Dificuldade selecionada: ${DIFFICULTY_PROFILES[selectedDifficulty].label}.`;
     if (isPaused) return 'Partida pausada.';
     if (isGameOver) return `Fim de partida. Pontuação ${gameState.score}.`;
@@ -382,7 +427,8 @@ const App: React.FC = () => {
 
       <Suspense fallback={<div className="canvas-fallback" />}>
         <GameContainer
-          handState={handState}
+          handState={activeHandState}
+          turn={turnAxis}
           gameState={gameState}
           isMotionReduced={reduceMotion}
           isPerformanceMode={performanceMode}
@@ -427,17 +473,50 @@ const App: React.FC = () => {
         </nav>
       ) : null}
 
-      <aside className="tracker-dock" aria-label="Pré-visualização do rastreamento das mãos">
-        <HandTracker
-          onUpdate={setHandState}
-          onError={setCameraError}
-          calibration={trackerCalibration}
-          isPaused={!isPlaying}
-        />
+      <aside
+        className="tracker-dock"
+        aria-label={isKeyboardMode ? 'Controles do modo teclado' : 'Pré-visualização do rastreamento das mãos'}
+      >
+        {isKeyboardMode ? (
+          <div className="keyboard-legend">
+            <strong>Modo teclado</strong>
+            <ul>
+              <li>
+                <kbd>W</kbd>
+                <kbd>A</kbd>
+                <kbd>S</kbd>
+                <kbd>D</kbd> mover
+              </li>
+              <li>
+                <kbd>Q</kbd>
+                <kbd>E</kbd> ou setas: girar
+              </li>
+              <li>
+                <kbd>Espaço</kbd> ou clique: disparar
+              </li>
+              <li>
+                <kbd>Shift</kbd> mira · <kbd>R</kbd> recarregar
+              </li>
+            </ul>
+          </div>
+        ) : (
+          <HandTracker
+            key={trackerSessionKey}
+            onUpdate={setHandState}
+            onError={handleCameraError}
+            calibration={trackerCalibration}
+            isPaused={!isPlaying}
+          />
+        )}
       </aside>
 
       {isPlaying ? (
-        <HUD gameState={gameState} handState={handState} sessionDurationMs={sessionDurationMs} />
+        <HUD
+          gameState={gameState}
+          handState={activeHandState}
+          sessionDurationMs={sessionDurationMs}
+          inputMode={inputMode}
+        />
       ) : null}
 
       {isPlaying && isDamageFlashVisible ? <div className="damage-flash" /> : null}
@@ -466,19 +545,6 @@ const App: React.FC = () => {
         >
           <CinematicGenerator onClose={() => setIsCinematicOpen(false)} />
         </Suspense>
-      ) : null}
-
-      {cameraError ? (
-        <section className="overlay-root" role="alertdialog" aria-modal="true" aria-labelledby="camera-error-title">
-          <div className="overlay-card compact">
-            <p>Falha de câmera</p>
-            <h2 id="camera-error-title">Não foi possível iniciar o rastreamento.</h2>
-            <p>{cameraError}</p>
-            <button type="button" className="primary-btn" onClick={() => window.location.reload()}>
-              Recarregar aplicação
-            </button>
-          </div>
-        </section>
       ) : null}
 
       {isMenu ? (
@@ -519,6 +585,40 @@ const App: React.FC = () => {
               </div>
 
               <div className="menu-config">
+                <fieldset className="input-mode-picker">
+                  <legend>Modo de controle</legend>
+                  <div className="input-mode-options">
+                    <button
+                      type="button"
+                      className={inputMode === 'GESTURE' ? 'input-mode-option selected' : 'input-mode-option'}
+                      aria-pressed={inputMode === 'GESTURE'}
+                      onClick={() => selectInputMode('GESTURE')}
+                    >
+                      <strong>Gestos (câmera)</strong>
+                      <span>Experiência completa com rastreamento das duas mãos.</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={inputMode === 'KEYBOARD' ? 'input-mode-option selected' : 'input-mode-option'}
+                      aria-pressed={inputMode === 'KEYBOARD'}
+                      onClick={() => selectInputMode('KEYBOARD')}
+                    >
+                      <strong>Teclado e mouse</strong>
+                      <span>Demo instantânea, sem permissão de câmera.</span>
+                    </button>
+                  </div>
+                  {cameraError ? (
+                    <div className="camera-notice" role="status">
+                      <p>
+                        <strong>Câmera indisponível.</strong> {cameraError}
+                      </p>
+                      <button type="button" className="secondary-btn" onClick={() => selectInputMode('GESTURE')}>
+                        Tentar câmera novamente
+                      </button>
+                    </div>
+                  ) : null}
+                </fieldset>
+
                 <div className="difficulty-grid">
                   {Object.values(DIFFICULTY_PROFILES).map((profile) => (
                     <button

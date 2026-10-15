@@ -2,6 +2,11 @@
 
 Projeto fullstack para experiência FPS em navegador controlada por gestos de mão, com renderização 3D em tempo real, backend modular para autenticação/telemetria e geração cinematográfica via API segura no servidor.
 
+> **Sem webcam?** O jogo detecta a falha de câmera e ativa o modo teclado e mouse automaticamente:
+> `WASD` move, `Q`/`E` gira, `Espaço` ou clique dispara, `Shift` mira, `R` recarrega.
+>
+> Auditoria técnica e roteiro de evolução: [`docs/ENGINEERING_ROADMAP.md`](docs/ENGINEERING_ROADMAP.md).
+
 ## Visão Geral do Projeto
 
 ### Propósito
@@ -146,10 +151,13 @@ npm install
 Crie `.env` na raiz (ou use export no ambiente) com base em `backend/.env.example`.
 
 Variáveis críticas:
+- `NODE_ENV` (em `production` o backend recusa o segredo JWT padrão e CORS `*`)
 - `BACKEND_JWT_SECRET`
 - `BACKEND_CORS_ORIGINS`
 - `BACKEND_DATA_FILE`
 - `BACKEND_GEMINI_API_KEY` (necessária para endpoint cinematográfico)
+- `BACKEND_TRUST_PROXY` (`true` atrás de proxy/load balancer)
+- `BACKEND_CINEMATIC_RATE_LIMIT_MAX` / `BACKEND_CINEMATIC_RATE_LIMIT_WINDOW` (padrão: 5 por hora)
 
 Opcional frontend:
 - `VITE_API_BASE_URL` (default: `http://localhost:8787/api/v1`)
@@ -176,8 +184,12 @@ npm run build
 ### Testes
 
 ```bash
-npm run test:api
+npm test            # frontend (domínio) + backend
+npm run test:web    # regras de domínio do frontend
+npm run test:api    # API, regressões e configuração do backend
 ```
+
+O CI (GitHub Actions) executa typecheck, testes e build em Node 20 e 22, além de `npm audit`, em todo push e pull request.
 
 ### Typecheck
 

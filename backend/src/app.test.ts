@@ -9,22 +9,27 @@ import { CinematicService } from './services/cinematic-service.js';
 const tempFiles: string[] = [];
 const SAMPLE_IMAGE_BASE64 = Buffer.from('mock-image-payload').toString('base64');
 
-const createConfig = async (): Promise<AppConfig> => {
+const createConfig = async (overrides: Partial<AppConfig> = {}): Promise<AppConfig> => {
   const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'gesturestrike-api-'));
   const filePath = path.join(tempDirectory, 'store.json');
   tempFiles.push(tempDirectory);
 
   return {
+    environment: 'test',
     host: '127.0.0.1',
     port: 9876,
     jwtSecret: 'test-secret-very-safe',
     accessTokenTtlSeconds: 3600,
     rateLimitMax: 500,
     rateLimitWindow: '1 minute',
+    cinematicRateLimitMax: 50,
+    cinematicRateLimitWindow: '1 hour',
+    trustProxy: false,
     corsOrigins: ['http://localhost:3000'],
     dataFile: filePath,
     geminiApiKey: undefined,
     bootstrapAdmin: undefined,
+    ...overrides,
   };
 };
 

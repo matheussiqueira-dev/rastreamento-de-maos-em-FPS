@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DIFFICULTY_LEVELS } from './types.js';
 
 const passwordSchema = z
   .string()
@@ -34,7 +35,7 @@ export const calibrationSchema = z.object({
 export const matchSubmissionSchema = z.object({
   score: z.number().int().min(0).max(5_000_000),
   accuracy: z.number().min(0).max(100),
-  difficulty: z.enum(['CASUAL', 'TACTICAL', 'INSANE']),
+  difficulty: z.enum(DIFFICULTY_LEVELS),
   durationMs: z.number().int().min(1_000).max(3_600_000),
   kills: z.number().int().min(0).max(10_000),
   highestWave: z.number().int().min(1).max(10_000),
@@ -45,7 +46,7 @@ export const paginationSchema = z.object({
 });
 
 export const leaderboardQuerySchema = paginationSchema.extend({
-  difficulty: z.enum(['CASUAL', 'TACTICAL', 'INSANE']).optional(),
+  difficulty: z.enum(DIFFICULTY_LEVELS).optional(),
   days: z.coerce.number().int().min(1).max(365).optional(),
 });
 

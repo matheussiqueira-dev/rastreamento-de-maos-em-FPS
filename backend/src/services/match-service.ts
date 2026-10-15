@@ -1,12 +1,12 @@
 import { nanoid } from 'nanoid';
-import { MatchRecord } from '../domain/types.js';
+import { DifficultyLevel, MatchRecord } from '../domain/types.js';
 import { StoreRepository } from '../infrastructure/store/store-repository.js';
 import { AppError } from '../shared/app-error.js';
 
 interface MatchInput {
   score: number;
   accuracy: number;
-  difficulty: 'CASUAL' | 'TACTICAL' | 'INSANE';
+  difficulty: DifficultyLevel;
   durationMs: number;
   kills: number;
   highestWave: number;
